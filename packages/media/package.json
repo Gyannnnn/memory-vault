@@ -1,0 +1,21 @@
+{
+  "name": "@memory-vault/media",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@memory-vault/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@memory-vault/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "vitest": "^5.0.0"
+  }
+}
