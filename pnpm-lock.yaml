@@ -219,6 +219,28 @@ importers:
         specifier: ^8.60.0
         version: 8.73.0(eslint@10.15.0)(typescript@6.0.3)
 
+  apps/cli:
+    dependencies:
+      '@memory-vault/media':
+        specifier: workspace:*
+        version: link:../../packages/media
+      '@memory-vault/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      commander:
+        specifier: '>=14 <16'
+        version: 15.1.0
+    devDependencies:
+      '@memory-vault/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      vitest:
+        specifier: ^5.0.0
+        version: 5.1.0(@types/node@24.19.2)(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15))
+
   packages/config: {}
 
   packages/media:
@@ -777,6 +799,10 @@ packages:
   chai@6.3.0:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
+
+  commander@15.1.0:
+    resolution: {integrity: sha512-cgnQ88TRrWcC7pVq46RzJVRMktu3W2RcbnoidnfBsl1bmDCBwJS/udcIZpKoCrbAYYaCqsz1yZCVIgbIaU3ddQ==}
+    engines: {node: '>=22.12.0'}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -1701,6 +1727,8 @@ snapshots:
       qified: 0.10.1
 
   chai@6.3.0: {}
+
+  commander@15.1.0: {}
 
   cross-spawn@7.0.6:
     dependencies:

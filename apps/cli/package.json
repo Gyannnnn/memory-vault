@@ -1,0 +1,23 @@
+{
+  "name": "@memory-vault/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "vault": "./src/main.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@memory-vault/media": "workspace:*",
+    "@memory-vault/shared": "workspace:*",
+    "commander": ">=14 <16"
+  },
+  "devDependencies": {
+    "@memory-vault/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "vitest": "^5.0.0"
+  }
+}
