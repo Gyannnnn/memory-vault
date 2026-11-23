@@ -49,6 +49,12 @@ describe('createSourceReader', () => {
     expect(await sha256Stream(reader.openRead('Camera/a.jpg'))).toBe(sha256Hex('aaaa'));
   });
 
+  it('reads byte ranges', async () => {
+    const reader = createSourceReader(fixture());
+    expect((await reader.readRange('Camera/a.jpg', 1, 2)).toString()).toBe('aa');
+    await expect(reader.readRange('Camera/a.jpg', 3, 5)).rejects.toThrow(/end of file/);
+  });
+
   it('refuses paths outside the root', () => {
     const reader = createSourceReader(fixture());
     expect(() => reader.openRead('../etc/passwd')).toThrow(/escapes/);
@@ -58,7 +64,14 @@ describe('createSourceReader', () => {
 
   it('exposes only read operations', () => {
     const reader = createSourceReader(fixture());
-    expect(Object.keys(reader).sort()).toEqual(['absolutePath', 'openRead', 'root', 'stat', 'walk']);
+    expect(Object.keys(reader).sort()).toEqual([
+      'absolutePath',
+      'openRead',
+      'readRange',
+      'root',
+      'stat',
+      'walk',
+    ]);
     expect(Object.isFrozen(reader)).toBe(true);
   });
 
@@ -68,5 +81,8 @@ describe('createSourceReader', () => {
       /\b(writeFile|appendFile|createWriteStream|unlink|rmdir|rm|rename|mkdir|copyFile|cp|chmod|chown|utimes|lutimes|futimes|truncate|symlink|link)\s*\(/;
     expect(source).not.toMatch(forbidden);
     expect(source).not.toMatch(/flags:\s*'(?!r')/);
+    const opens = source.split('\n').filter((line) => /\bopen\(/.test(line));
+    expect(opens.length).toBeGreaterThan(0);
+    expect(opens.every((line) => line.includes("'r')"))).toBe(true);
   });
 });

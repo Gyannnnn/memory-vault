@@ -1,5 +1,5 @@
 import { createReadStream, type ReadStream } from 'node:fs';
-import { lstat, opendir } from 'node:fs/promises';
+import { lstat, open, opendir } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 export type SourceEntry =
@@ -23,6 +23,7 @@ export interface SourceReader {
   walk(): AsyncGenerator<SourceEntry>;
   stat(relativePath: string): Promise<{ size: number; mtimeMs: number; mtimeNs: bigint; ino: bigint }>;
   openRead(relativePath: string, options?: { start?: number; end?: number }): ReadStream;
+  readRange(relativePath: string, start: number, length: number): Promise<Buffer>;
   absolutePath(relativePath: string): string;
 }
 
@@ -108,5 +109,21 @@ export function createSourceReader(rootPath: string): SourceReader {
     });
   }
 
-  return Object.freeze({ root, walk, stat, openRead, absolutePath });
+  async function readRange(relativePath: string, start: number, length: number): Promise<Buffer> {
+    const handle = await open(absolutePath(relativePath), 'r');
+    try {
+      const buffer = Buffer.allocUnsafe(length);
+      let filled = 0;
+      while (filled < length) {
+        const { bytesRead } = await handle.read(buffer, filled, length - filled, start + filled);
+        if (bytesRead === 0) throw new Error(`unexpected end of file reading ${relativePath}`);
+        filled += bytesRead;
+      }
+      return buffer;
+    } finally {
+      await handle.close();
+    }
+  }
+
+  return Object.freeze({ root, walk, stat, openRead, readRange, absolutePath });
 }
