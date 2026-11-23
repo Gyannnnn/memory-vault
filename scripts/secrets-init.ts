@@ -71,9 +71,9 @@ const pathMap = [
   .filter(Boolean)
   .join(';');
 const apiValues: Record<string, string> = {
-  DATABASE_URL: `postgresql://vault_app:${compose.get('VAULT_APP_DB_PASSWORD')}@localhost:5432/vault`,
-  DATABASE_MIGRATE_URL: `postgresql://vault:${compose.get('POSTGRES_PASSWORD')}@localhost:5432/vault`,
-  REDIS_URL: `redis://:${compose.get('REDIS_PASSWORD')}@localhost:6379`,
+  DATABASE_URL: `postgresql://vault_app:${compose.get('VAULT_APP_DB_PASSWORD')}@localhost:${compose.get('VAULT_PG_PORT') ?? '5433'}/vault`,
+  DATABASE_MIGRATE_URL: `postgresql://vault:${compose.get('POSTGRES_PASSWORD')}@localhost:${compose.get('VAULT_PG_PORT') ?? '5433'}/vault`,
+  REDIS_URL: `redis://:${compose.get('REDIS_PASSWORD')}@localhost:${compose.get('VAULT_REDIS_PORT') ?? '6379'}`,
   DATA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
 };
 if (!api.env.get('JWT_PRIVATE_KEY') && !api.env.get('JWT_PUBLIC_KEY')) {
