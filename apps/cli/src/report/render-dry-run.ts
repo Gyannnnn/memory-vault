@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { formatBytes, formatCount, formatDuration, formatUsd } from '@memory-vault/shared';
-import type { DryRunReport, SourceSummary } from './dry-run';
+import type { DryRunReport, SourceSummary, StagingPlan } from './dry-run';
 
 const tally = (value: { files: number; bytes: number }) =>
   `${formatCount(value.files)} files · ${formatBytes(value.bytes)}`;
@@ -125,6 +125,18 @@ function sourceSection(source: SourceSummary): string {
   return parts.join('\n');
 }
 
+function stagingSection(plan: StagingPlan): string {
+  return [
+    '### Staging plan for phone files',
+    '',
+    `Only content not already found elsewhere is copied off the phone: ${formatBytes(plan.neededBytes)}. ` +
+      `Free space at \`${plan.directory}\`: ${formatBytes(plan.freeBytes)} (keeping ${formatBytes(plan.headroomBytes)} free). ` +
+      (plan.batches <= 1
+        ? 'It fits in one batch.'
+        : `It will be copied, uploaded and cleared in ${plan.batches} batches of up to ${formatBytes(plan.batchBytes)}.`),
+  ].join('\n');
+}
+
 export function renderDryRunMarkdown(report: DryRunReport): string {
   const { combined } = report;
   const cost = combined.monthlyCost;
@@ -192,6 +204,7 @@ export function renderDryRunMarkdown(report: DryRunReport): string {
     '',
     'Upper bound: assumes every review file is approved. Thumbnails and previews add well under $1/month.',
     '',
+    ...(report.staging ? [stagingSection(report.staging), ''] : []),
     ...report.sources.map(sourceSection),
   ].join('\n');
 }
@@ -207,6 +220,7 @@ export function printDryRunSummary(report: DryRunReport): void {
       `    included          ${tally(source.files)}`,
       `    junk review       ${tally(source.review)}`,
       `    in earlier source ${tally(source.alreadyInEarlierSource)}`,
+      `    new content       ${tally(source.newContent)}`,
       `    duplicates inside ${formatCount(source.duplicatesWithinSource.redundantFiles)} files · ${formatBytes(source.duplicatesWithinSource.redundantBytes)}`,
       ...(source.excluded.files > 0 ? [`    excluded          ${tally(source.excluded)}`] : []),
       ...(source.unreadable.length > 0
@@ -220,6 +234,11 @@ export function printDryRunSummary(report: DryRunReport): void {
     '',
     `  upload time (direct): ${combined.uploadEstimates.map((row) => `${formatDuration(row.directSeconds)} @ ${row.mbps} Mbps`).join(', ')}`,
     `  S3 per month: ${formatUsd(combined.monthlyCost.firstMonth)} first month → ${formatUsd(combined.monthlyCost.idleAfterNinetyDays)} once idle 90+ days`,
+    ...(report.staging
+      ? [
+          `  phone staging: ${formatBytes(report.staging.neededBytes)} to copy, ${formatBytes(report.staging.freeBytes)} free → ${report.staging.batches <= 1 ? 'one batch' : `${report.staging.batches} batches`}`,
+        ]
+      : []),
     '',
   ];
   console.log(lines.join('\n'));

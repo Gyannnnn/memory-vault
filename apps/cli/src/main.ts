@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { resolve } from 'node:path';
+import { existsSync, statfsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { Command, InvalidArgumentError } from 'commander';
 import { sourceIdSchema, type SourceId } from '@memory-vault/shared';
 import { config, manifestPath } from './config';
 import { Manifest } from './manifest/manifest';
 import { scanLocalSource } from './commands/scan';
-import { buildDryRunReport, DEFAULT_SPEEDS_MBPS } from './report/dry-run';
+import { buildDryRunReport, DEFAULT_SPEEDS_MBPS, type DryRunReport } from './report/dry-run';
 import { printDryRunSummary, writeDryRunReport } from './report/render-dry-run';
 import { registerPhoneCommands } from './phone/commands';
 
@@ -27,8 +28,34 @@ export function openManifest(): Manifest {
   return new Manifest(manifestPath());
 }
 
+const STAGING_HEADROOM = 15 * 1024 ** 3;
+const MAX_BATCH = 40 * 1024 ** 3;
+
+function freeBytesAt(directory: string): number {
+  let probe = directory;
+  while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe);
+  const stats = statfsSync(probe);
+  return stats.bavail * stats.bsize;
+}
+
+export function stagingPlan(neededBytes: number): NonNullable<DryRunReport['staging']> {
+  const freeBytes = freeBytesAt(config.stagingDir);
+  const batchBytes = Math.max(0, Math.min(MAX_BATCH, freeBytes - STAGING_HEADROOM));
+  return {
+    directory: config.stagingDir,
+    freeBytes,
+    neededBytes,
+    headroomBytes: STAGING_HEADROOM,
+    batchBytes,
+    batches: batchBytes > 0 ? Math.ceil(neededBytes / batchBytes) : Number.POSITIVE_INFINITY,
+  };
+}
+
 export function reportDryRun(manifest: Manifest, sourceIds: SourceId[], speeds: number[]): void {
   const report = buildDryRunReport(manifest, sourceIds, speeds);
+  const phoneSources = report.sources.filter((source) => source.kind === 'phone');
+  if (phoneSources.length > 0)
+    report.staging = stagingPlan(phoneSources.reduce((sum, s) => sum + s.newContent.bytes, 0));
   printDryRunSummary(report);
   const files = writeDryRunReport(report, config.reportsDir);
   console.log(`Full report:\n  ${files.markdown}\n  ${files.json}`);

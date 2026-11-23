@@ -44,7 +44,18 @@ export interface SourceSummary {
     examples: string[][];
   };
   alreadyInEarlierSource: Tally;
+  /** Content first seen in this source: what would have to be copied off a phone before upload. */
+  newContent: Tally;
   review: Tally & { byReason: (TallyWithExamples & { reason: ReviewReason; label: string })[] };
+}
+
+export interface StagingPlan {
+  directory: string;
+  freeBytes: number;
+  neededBytes: number;
+  headroomBytes: number;
+  batchBytes: number;
+  batches: number;
 }
 
 export interface DryRunReport {
@@ -60,6 +71,7 @@ export interface DryRunReport {
     monthlyCost: ReturnType<typeof estimateStorageCost>;
     pricing: typeof s3Pricing;
   };
+  staging?: StagingPlan;
   reviewPaths: Record<SourceId, { path: string; reasons: ReviewReason[] }[]>;
   duplicateGroups: { sha256: string; size: number; copies: { sourceId: SourceId; path: string }[] }[];
 }
@@ -106,6 +118,7 @@ function summarize(source: SourceRow, files: FileRow[], seenEarlier: Set<string>
     topFolders: [],
     duplicatesWithinSource: { groups: 0, redundantFiles: 0, redundantBytes: 0, examples: [] },
     alreadyInEarlierSource: { files: 0, bytes: 0 },
+    newContent: { files: 0, bytes: 0 },
     review: { files: 0, bytes: 0, byReason: [] },
   };
 
@@ -146,7 +159,8 @@ function summarize(source: SourceRow, files: FileRow[], seenEarlier: Set<string>
     }
   }
 
-  for (const group of bySha.values()) {
+  for (const [sha256, group] of bySha) {
+    if (!seenEarlier.has(sha256)) add(summary.newContent, group[0]!.size);
     if (group.length < 2) continue;
     summary.duplicatesWithinSource.groups += 1;
     summary.duplicatesWithinSource.redundantFiles += group.length - 1;
