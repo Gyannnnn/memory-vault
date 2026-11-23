@@ -45,6 +45,8 @@ export interface FileRow {
   error: string | null;
   stagedPath: string | null;
   assetId: string | null;
+  junkScore: number | null;
+  junkLabel: string | null;
 }
 
 export interface EntryUpsert {
@@ -112,6 +114,10 @@ const migrations: string[] = [
   ALTER TABLE files ADD COLUMN asset_id TEXT;
   ALTER TABLE files ADD COLUMN uploaded_at INTEGER;
   `,
+  `
+  ALTER TABLE files ADD COLUMN junk_score REAL;
+  ALTER TABLE files ADD COLUMN junk_label TEXT;
+  `,
 ];
 
 type Row = Record<string, unknown>;
@@ -136,6 +142,8 @@ function toFileRow(row: Row): FileRow {
     error: row.error as string | null,
     stagedPath: row.staged_path as string | null,
     assetId: (row.asset_id as string | null) ?? null,
+    junkScore: (row.junk_score as number | null) ?? null,
+    junkLabel: (row.junk_label as string | null) ?? null,
   };
 }
 
@@ -413,10 +421,18 @@ export class Manifest {
          FROM files f
          WHERE f.source_id IN (${placeholders}) AND f.entry_type = 'file' AND f.selected = 1 AND f.route = 'review'
            AND f.status IN ('pending', 'awaiting_review', 'skipped', 'failed')
-         ORDER BY f.source_id, f.path`,
+         ORDER BY f.junk_score IS NULL, f.junk_score DESC, f.source_id, f.path`,
       )
       .all(...sourceIds)
       .map((row) => ({ ...toFileRow(row), keptElsewhere: row.kept_elsewhere === 1 }));
+  }
+
+  setJunkScore(sourceId: SourceId, path: string, score: number, label: string): void {
+    this.db
+      .prepare(
+        'UPDATE files SET junk_score = ?, junk_label = ?, updated_at = ? WHERE source_id = ? AND path = ?',
+      )
+      .run(score, label, Date.now(), sourceId, path);
   }
 
   file(sourceId: SourceId, path: string): FileRow | undefined {

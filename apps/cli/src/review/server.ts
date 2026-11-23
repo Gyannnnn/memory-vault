@@ -150,6 +150,8 @@ export async function startReviewServer(
         decision: item.decision,
         keptElsewhere: item.keptElsewhere,
         preview: previewKind(item),
+        junkScore: item.junkScore,
+        junkLabel: item.junkLabel,
       }));
   }
 

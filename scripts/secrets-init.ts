@@ -84,6 +84,9 @@ if (pathMap) apiValues.LOCAL_PATH_MAP = pathMap;
 fill(api.path, apiValues);
 
 const cli = ensureEnvFile('apps/cli');
-fill(cli.path, { VAULT_STAGING_DIR: compose.get('VAULT_STAGING_DIR') ?? '' });
+fill(cli.path, {
+  VAULT_STAGING_DIR: compose.get('VAULT_STAGING_DIR') ?? '',
+  ...(pathMap ? { VAULT_CONTAINER_PATH_MAP: pathMap } : {}),
+});
 
 console.log('done — existing values were left untouched');

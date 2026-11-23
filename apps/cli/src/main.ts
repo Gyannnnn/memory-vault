@@ -14,6 +14,7 @@ import { apiClient } from './auth/credentials';
 import { login, logout } from './auth/login';
 import { runUpload } from './upload/engine';
 import { review } from './review/command';
+import { classify } from './review/classify';
 import { buildReconciliation, printReconciliation, writeReconciliation } from './report/reconcile';
 
 function parseSourceId(value: string): SourceId {
@@ -212,6 +213,19 @@ program
     const manifest = openManifest();
     try {
       await review(manifest, sourceIdsOrAll(manifest, sources), options);
+    } finally {
+      manifest.close();
+    }
+  });
+
+program
+  .command('classify')
+  .description('Score review images with the local CLIP model so likely forwards and greetings sort first')
+  .argument('[sources...]', 'source ids (default: every scanned source)')
+  .action(async (sources: string[]) => {
+    const manifest = openManifest();
+    try {
+      await classify(manifest, sourceIdsOrAll(manifest, sources));
     } finally {
       manifest.close();
     }
