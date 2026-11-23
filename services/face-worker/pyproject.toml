@@ -1,0 +1,20 @@
+[project]
+name = "face-worker"
+version = "0.1.0"
+description = "Local ML for Memory Vault: junk-photo classifier now, face recognition later. Nothing leaves the machine."
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=2.0",
+  "onnxruntime>=1.20",
+  "pillow>=11.0",
+  "pillow-heif>=0.20",
+  "tokenizers>=0.20",
+  "huggingface-hub>=0.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.8"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
