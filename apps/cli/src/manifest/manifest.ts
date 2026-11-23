@@ -44,6 +44,7 @@ export interface FileRow {
   decision: 'approved' | 'skipped' | null;
   error: string | null;
   stagedPath: string | null;
+  assetId: string | null;
 }
 
 export interface EntryUpsert {
@@ -107,6 +108,10 @@ const migrations: string[] = [
   CREATE INDEX files_sha256 ON files (sha256);
   CREATE INDEX files_source_status ON files (source_id, status);
   `,
+  `
+  ALTER TABLE files ADD COLUMN asset_id TEXT;
+  ALTER TABLE files ADD COLUMN uploaded_at INTEGER;
+  `,
 ];
 
 type Row = Record<string, unknown>;
@@ -130,6 +135,7 @@ function toFileRow(row: Row): FileRow {
     decision: row.decision as FileRow['decision'],
     error: row.error as string | null,
     stagedPath: row.staged_path as string | null,
+    assetId: (row.asset_id as string | null) ?? null,
   };
 }
 
@@ -320,6 +326,85 @@ export class Manifest {
     return this.db
       .prepare('SELECT * FROM files WHERE source_id = ? ORDER BY path')
       .all(sourceId)
+      .map(toFileRow);
+  }
+
+  setStatus(
+    sourceId: SourceId,
+    path: string,
+    status: FileStatus,
+    extra: { error?: string | null; assetId?: string | null } = {},
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE files SET status = ?, error = ?, asset_id = COALESCE(?, asset_id),
+           uploaded_at = CASE WHEN ? IN ('uploaded', 'deduplicated') THEN ? ELSE uploaded_at END, updated_at = ?
+         WHERE source_id = ? AND path = ?`,
+      )
+      .run(
+        status,
+        extra.error ?? null,
+        extra.assetId ?? null,
+        status,
+        Date.now(),
+        Date.now(),
+        sourceId,
+        path,
+      );
+  }
+
+  setDecision(sourceId: SourceId, path: string, decision: 'approved' | 'skipped' | null): void {
+    this.db
+      .prepare(
+        `UPDATE files SET decision = ?, updated_at = ?,
+           status = CASE
+             WHEN ? = 'skipped' AND status IN ('pending', 'awaiting_review') THEN 'skipped'
+             WHEN ? IS NOT 'skipped' AND status = 'skipped' THEN 'pending'
+             WHEN ? = 'approved' AND status = 'awaiting_review' THEN 'pending'
+             ELSE status END
+         WHERE source_id = ? AND path = ?`,
+      )
+      .run(decision, Date.now(), decision, decision, decision, sourceId, path);
+  }
+
+  setStagedPath(sourceId: SourceId, path: string, stagedPath: string | null): void {
+    this.db
+      .prepare('UPDATE files SET staged_path = ?, updated_at = ? WHERE source_id = ? AND path = ?')
+      .run(stagedPath, Date.now(), sourceId, path);
+  }
+
+  /** Puts review files without a decision into awaiting_review, and returns how many are waiting. */
+  holdForReview(sourceId: SourceId): number {
+    this.db
+      .prepare(
+        `UPDATE files SET status = 'awaiting_review', updated_at = ?
+         WHERE source_id = ? AND entry_type = 'file' AND selected = 1 AND route = 'review'
+           AND decision IS NULL AND status = 'pending'`,
+      )
+      .run(Date.now(), sourceId);
+    return this.db
+      .prepare(`SELECT COUNT(*) AS n FROM files WHERE source_id = ? AND status = 'awaiting_review'`)
+      .get(sourceId)!.n as number;
+  }
+
+  /** Files that may be uploaded now: hashed, selected, and either direct or approved in review. */
+  uploadCandidates(sourceId: SourceId, retryFailed: boolean): FileRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM files WHERE source_id = ? AND entry_type = 'file' AND selected = 1 AND sha256 IS NOT NULL
+           AND (route = 'direct' OR decision = 'approved')
+           AND (status = 'pending' OR (? = 1 AND status = 'failed'))
+         ORDER BY path`,
+      )
+      .all(sourceId, retryFailed ? 1 : 0)
+      .map(toFileRow);
+  }
+
+  /** Every manifest row holding this content, across all sources. */
+  rowsWithSha(sha256: string): FileRow[] {
+    return this.db
+      .prepare(`SELECT * FROM files WHERE sha256 = ? AND entry_type = 'file' ORDER BY source_id, path`)
+      .all(sha256)
       .map(toFileRow);
   }
 
