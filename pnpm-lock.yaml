@@ -348,9 +348,15 @@ importers:
       '@memory-vault/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@memory-vault/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
       commander:
         specifier: '>=14 <16'
         version: 15.1.0
+      esbuild:
+        specifier: ^0.25.0 || ^0.26.0 || ^0.27.0 || ^0.28.0
+        version: 0.28.2
       sharp:
         specifier: ^0.34.0 || ^0.35.0
         version: 0.35.5(@types/node@24.19.2)
@@ -404,6 +410,15 @@ importers:
       zod:
         specifier: ^4.0.0
         version: 4.6.7
+    devDependencies:
+      '@memory-vault/config':
+        specifier: workspace:*
+        version: link:../config
+      vitest:
+        specifier: ^5.0.0
+        version: 5.1.0(@types/node@24.19.2)(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/tokens:
     devDependencies:
       '@memory-vault/config':
         specifier: workspace:*
