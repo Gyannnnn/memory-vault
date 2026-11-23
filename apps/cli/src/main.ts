@@ -9,6 +9,11 @@ import { scanLocalSource } from './commands/scan';
 import { buildDryRunReport, DEFAULT_SPEEDS_MBPS, type DryRunReport } from './report/dry-run';
 import { printDryRunSummary, writeDryRunReport } from './report/render-dry-run';
 import { registerPhoneCommands } from './phone/commands';
+import { createPhoneStager } from './phone/stage';
+import { apiClient } from './auth/credentials';
+import { login, logout } from './auth/login';
+import { runUpload } from './upload/engine';
+import { buildReconciliation, printReconciliation, writeReconciliation } from './report/reconcile';
 
 function parseSourceId(value: string): SourceId {
   const parsed = sourceIdSchema.safeParse(value);
@@ -92,17 +97,104 @@ program
     },
   );
 
+function sourceIdsOrAll(manifest: Manifest, sources: string[]): SourceId[] {
+  const ids = sources.length > 0 ? sources.map(parseSourceId) : manifest.listSources().map((s) => s.id);
+  if (ids.length === 0) throw new Error('no sources scanned yet; run `vault scan` first');
+  return ids;
+}
+
 program
-  .command('report')
+  .command('dry-run')
   .description('Summarise scanned sources without uploading anything')
   .argument('[sources...]', 'source ids (default: every scanned source, in scan order)')
   .option('--upload-mbps <list>', 'upload speeds for time estimates', parseSpeeds, DEFAULT_SPEEDS_MBPS)
   .action((sources: string[], options: { uploadMbps: number[] }) => {
     const manifest = openManifest();
     try {
-      const ids = sources.length > 0 ? sources.map(parseSourceId) : manifest.listSources().map((s) => s.id);
-      if (ids.length === 0) throw new Error('no sources scanned yet; run `vault scan` first');
-      reportDryRun(manifest, ids, options.uploadMbps);
+      reportDryRun(manifest, sourceIdsOrAll(manifest, sources), options.uploadMbps);
+    } finally {
+      manifest.close();
+    }
+  });
+
+program
+  .command('login')
+  .description('Sign in to your Memory Vault (password + authenticator code, or a recovery code)')
+  .option('--recovery', 'sign in with a printed recovery code')
+  .action((options: { recovery?: boolean }) => login(options));
+
+program
+  .command('logout')
+  .description('Sign out on this computer')
+  .action(() => logout());
+
+program
+  .command('upload')
+  .description('Upload scanned sources: resumable, checksum-verified, deduplicated')
+  .argument('<sources...>', 'source ids, e.g. laptop:s21fe phone:s21fe')
+  .option('--retry-failed', 'retry files that failed in an earlier run')
+  .option('--no-rescan', 'skip re-scanning local sources before uploading')
+  .option('--keep-staging', 'keep copies pulled from the phone after they upload')
+  .option('--parts <n>', 'upload parts in flight', (value) => Number.parseInt(value, 10), 6)
+  .option('--files <n>', 'files in flight', (value) => Number.parseInt(value, 10), 4)
+  .action(
+    async (
+      sources: string[],
+      options: {
+        retryFailed?: boolean;
+        rescan: boolean;
+        keepStaging?: boolean;
+        parts: number;
+        files: number;
+      },
+    ) => {
+      const ids = sources.map(parseSourceId);
+      const api = apiClient();
+      await api.me();
+      const manifest = openManifest();
+      try {
+        for (const id of ids) {
+          const source = manifest.getSource(id);
+          if (!source) throw new Error(`unknown source ${id}; scan it first`);
+          if (source.kind === 'local' && options.rescan) {
+            const scan = await scanLocalSource(manifest, id, source.root);
+            if (scan.interrupted) return;
+          }
+        }
+        const summary = await runUpload(manifest, api, {
+          sourceIds: ids,
+          apiUrl: config.apiUrl,
+          retryFailed: Boolean(options.retryFailed),
+          parallelParts: options.parts,
+          parallelFiles: options.files,
+          stagePhoneFile: createPhoneStager(manifest, { keepStaging: Boolean(options.keepStaging) }),
+        });
+        const report = await buildReconciliation(manifest, ids, null);
+        printReconciliation(report);
+        console.log(`\nReport:\n  ${writeReconciliation(report, config.reportsDir).join('\n  ')}`);
+        if (summary.interrupted) process.exitCode = 130;
+        else if (summary.failed > 0) process.exitCode = 2;
+      } finally {
+        manifest.close();
+      }
+    },
+  );
+
+program
+  .command('report')
+  .description(
+    'Reconcile sources against what is stored: found vs uploaded vs duplicates vs review vs failed',
+  )
+  .argument('[sources...]', 'source ids (default: every scanned source)')
+  .option('--verify', 'check every stored file in S3 now and list what is safe to delete from the sources')
+  .action(async (sources: string[], options: { verify?: boolean }) => {
+    const manifest = openManifest();
+    try {
+      const ids = sourceIdsOrAll(manifest, sources);
+      const report = await buildReconciliation(manifest, ids, options.verify ? apiClient() : null);
+      printReconciliation(report);
+      console.log(`\nReport:\n  ${writeReconciliation(report, config.reportsDir).join('\n  ')}`);
+      if (!report.total.invariantHolds) process.exitCode = 3;
     } finally {
       manifest.close();
     }
