@@ -145,6 +145,19 @@ await check(
   },
 );
 
+await check('no lifecycle rule deletes current files outside test/', 'C1', async () => {
+  const { Rules = [] } = await s3.send(new GetBucketLifecycleConfigurationCommand({ Bucket }));
+  const dangerous = Rules.filter(
+    (rule) =>
+      rule.Status === 'Enabled' &&
+      rule.Filter?.Prefix !== 'test/' &&
+      (rule.Expiration?.Days !== undefined || rule.Expiration?.Date !== undefined),
+  );
+  return dangerous.length === 0
+    ? true
+    : `rule(s) ${dangerous.map((rule) => rule.ID).join(', ')} would permanently expire your files — remove "Expire current versions" from them now`;
+});
+
 await check('bucket policy denies non-TLS access', 'C2', async () => {
   const { Policy } = await s3.send(new GetBucketPolicyCommand({ Bucket }));
   const statements =
