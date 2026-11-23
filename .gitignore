@@ -1,0 +1,57 @@
+# AI tooling — never committed
+.claude/
+CLAUDE.md
+CLAUDE.*.md
+CLAUDE.local.md
+.mcp.json
+AGENTS.md
+.agents/
+.cursor/
+.windsurf/
+.aider*
+.continue/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+
+# Generated reports and local data
+reports/*
+!reports/.gitkeep
+*.sqlite
+*.db
+*.db-wal
+*.db-shm
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+.next/
+out/
+.expo/
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+models/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.log

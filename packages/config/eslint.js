@@ -1,0 +1,42 @@
+import js from '@eslint/js';
+import prettier from 'eslint-config-prettier';
+import { defineConfig } from 'eslint/config';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+
+export const ignores = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/coverage/**',
+  '**/.turbo/**',
+  '**/generated/**',
+  '**/.next/**',
+  '**/.expo/**',
+  'services/**',
+  'reports/**',
+];
+
+export default defineConfig(
+  { ignores },
+  js.configs.recommended,
+  tseslint.configs.recommendedTypeChecked,
+  {
+    languageOptions: {
+      globals: { ...globals.node },
+      parserOptions: { projectService: true },
+    },
+    rules: {
+      '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      'no-console': 'off',
+      eqeqeq: ['error', 'always'],
+    },
+  },
+  {
+    files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+  prettier,
+);

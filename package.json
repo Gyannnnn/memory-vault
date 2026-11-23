@@ -1,0 +1,36 @@
+{
+  "name": "memory-vault",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.23.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "vault": "tsx apps/cli/src/main.ts",
+    "vault-admin": "pnpm --filter @memory-vault/api run admin",
+    "aws:verify": "pnpm --filter @memory-vault/api run aws:verify",
+    "secrets:init": "tsx scripts/secrets-init.ts",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "eslint .",
+    "test": "turbo run test",
+    "test:aws": "pnpm --filter @memory-vault/api run test:aws",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@memory-vault/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.6.0",
+    "tsx": "^4.20.0",
+    "turbo": "^2.5.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.60.0"
+  }
+}
