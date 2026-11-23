@@ -51,6 +51,7 @@ services:
       ROOT_ACCESS_KEY: test-access-key
       ROOT_SECRET_KEY: test-secret-key
       VGW_PORT: ':7070'
+      VGW_REGION: ap-south-1
     ports:
       - '127.0.0.1:7070:7070'
     tmpfs:
