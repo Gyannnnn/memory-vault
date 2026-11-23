@@ -14,7 +14,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "typecheck": "prisma generate >/dev/null && tsc --noEmit",
     "test": "vitest run",
-    "test:aws": "VAULT_TEST_AWS=1 vitest run src/storage/aws.live.test.ts"
+    "test:aws": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1100.0",
