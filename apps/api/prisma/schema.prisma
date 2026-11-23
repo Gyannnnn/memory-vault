@@ -1,0 +1,327 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Identity ────────────────────────────────────────────────────────────────
+// These tables are not under row-level security: sign-in has to find a user
+// before it knows who they are. Library tables below are.
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+model User {
+  id                String     @id @db.Uuid
+  email             String     @unique
+  displayName       String     @map("display_name")
+  status            UserStatus @default(active)
+  storageQuotaBytes BigInt     @map("storage_quota_bytes")
+  storageUsedBytes  BigInt     @default(0) @map("storage_used_bytes")
+  planCode          String     @default("personal") @map("plan_code")
+  billingCustomerId String?    @map("billing_customer_id")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  password      PasswordCredential?
+  totp          TotpCredential?
+  recoveryCodes RecoveryCode[]
+  passkeys      Passkey[]
+  sessions      Session[]
+  auditEvents   AuditEvent[]
+
+  assets         Asset[]
+  derivatives    Derivative[]
+  folders        Folder[]
+  fileEntries    FileEntry[]
+  assetOrigins   AssetOrigin[]
+  uploadSessions UploadSession[]
+  usageSnapshots UsageSnapshot[]
+
+  @@map("users")
+}
+
+model PasswordCredential {
+  userId    String   @id @map("user_id") @db.Uuid
+  hash      String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_credentials")
+}
+
+model TotpCredential {
+  userId           String    @id @map("user_id") @db.Uuid
+  secretCiphertext Bytes     @map("secret_ciphertext")
+  lastUsedStep     BigInt?   @map("last_used_step")
+  confirmedAt      DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("totp_credentials")
+}
+
+model RecoveryCode {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  hash      String
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("recovery_codes")
+}
+
+model Passkey {
+  id           String    @id @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  credentialId String    @unique @map("credential_id")
+  publicKey    Bytes     @map("public_key")
+  counter      BigInt
+  transports   String[]
+  deviceType   String    @map("device_type")
+  backedUp     Boolean   @map("backed_up")
+  nickname     String
+  aaguid       String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(3)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkeys")
+}
+
+model Session {
+  id            String         @id @db.Uuid
+  userId        String         @map("user_id") @db.Uuid
+  deviceName    String         @map("device_name")
+  userAgent     String?        @map("user_agent")
+  ipAddress     String?        @map("ip_address")
+  authMethod    String         @map("auth_method")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt    DateTime       @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  expiresAt     DateTime       @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime?      @map("revoked_at") @db.Timestamptz(3)
+  revokedReason String?        @map("revoked_reason")
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  hash      String    @id
+  sessionId String    @map("session_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("refresh_tokens")
+}
+
+model AuditEvent {
+  id        String   @id @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  type      String
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("audit_events")
+}
+
+// ─── Library (row-level security: user_id = app.user_id) ─────────────────────
+
+enum MediaKind {
+  photo
+  raw
+  video
+  audio
+  document
+  other
+}
+
+enum AssetStatus {
+  uploading
+  verified
+  missing
+}
+
+model Asset {
+  id                   String      @id @db.Uuid
+  userId               String      @map("user_id") @db.Uuid
+  sha256               String
+  sizeBytes            BigInt      @map("size_bytes")
+  mimeType             String      @map("mime_type")
+  kind                 MediaKind
+  extension            String
+  originalName         String      @map("original_name")
+  originalModifiedAt   DateTime?   @map("original_modified_at") @db.Timestamptz(3)
+  s3Key                String      @map("s3_key")
+  s3VersionId          String?     @map("s3_version_id")
+  s3ChecksumSha256     String?     @map("s3_checksum_sha256")
+  storageClass         String      @default("INTELLIGENT_TIERING") @map("storage_class")
+  status               AssetStatus @default(uploading)
+  verifiedAt           DateTime?   @map("verified_at") @db.Timestamptz(3)
+  lastSeenInS3At       DateTime?   @map("last_seen_in_s3_at") @db.Timestamptz(3)
+  takenAt              DateTime?   @map("taken_at") @db.Timestamptz(3)
+  takenAtOffsetMinutes Int?        @map("taken_at_offset_minutes")
+  gpsLatitude          Float?      @map("gps_latitude")
+  gpsLongitude         Float?      @map("gps_longitude")
+  gpsAltitude          Float?      @map("gps_altitude")
+  cameraMake           String?     @map("camera_make")
+  cameraModel          String?     @map("camera_model")
+  lensModel            String?     @map("lens_model")
+  width                Int?
+  height               Int?
+  durationMs           Int?        @map("duration_ms")
+  isMotionPhoto        Boolean     @default(false) @map("is_motion_photo")
+  phash                String?
+  exif                 Json?
+  processedAt          DateTime?   @map("processed_at") @db.Timestamptz(3)
+  processingError      String?     @map("processing_error")
+  deletedAt            DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  derivatives    Derivative[]
+  entries        FileEntry[]
+  origins        AssetOrigin[]
+  uploadSessions UploadSession[]
+
+  @@unique([userId, sha256])
+  @@index([userId, takenAt(sort: Desc), id])
+  @@index([userId, createdAt(sort: Desc), id])
+  @@index([userId, kind])
+  @@map("assets")
+}
+
+model Derivative {
+  id        String   @id @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  assetId   String   @map("asset_id") @db.Uuid
+  variant   String
+  s3Key     String   @map("s3_key")
+  mimeType  String   @map("mime_type")
+  width     Int
+  height    Int
+  sizeBytes Int      @map("size_bytes")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, variant])
+  @@index([userId])
+  @@map("derivatives")
+}
+
+model Folder {
+  id        String      @id @db.Uuid
+  userId    String      @map("user_id") @db.Uuid
+  parentId  String?     @map("parent_id") @db.Uuid
+  name      String
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  parent    Folder?     @relation("FolderTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children  Folder[]    @relation("FolderTree")
+  entries   FileEntry[]
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, parentId, name])
+  @@map("folders")
+}
+
+model FileEntry {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  folderId  String    @map("folder_id") @db.Uuid
+  assetId   String    @map("asset_id") @db.Uuid
+  name      String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+  folder    Folder    @relation(fields: [folderId], references: [id], onDelete: Restrict)
+  asset     Asset     @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, name])
+  @@index([userId, folderId])
+  @@index([assetId])
+  @@map("file_entries")
+}
+
+model AssetOrigin {
+  id                 String    @id @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  assetId            String    @map("asset_id") @db.Uuid
+  sourceId           String    @map("source_id")
+  originalPath       String    @map("original_path")
+  originalName       String    @map("original_name")
+  originalModifiedAt DateTime? @map("original_modified_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  asset              Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sourceId, originalPath])
+  @@index([assetId])
+  @@map("asset_origins")
+}
+
+enum UploadStatus {
+  uploading
+  completed
+  aborted
+  failed
+}
+
+model UploadSession {
+  id            String       @id @db.Uuid
+  userId        String       @map("user_id") @db.Uuid
+  assetId       String       @map("asset_id") @db.Uuid
+  sha256        String
+  sizeBytes     BigInt       @map("size_bytes")
+  s3Key         String       @map("s3_key")
+  s3UploadId    String?      @map("s3_upload_id")
+  partSizeBytes Int?         @map("part_size_bytes")
+  partCount     Int          @map("part_count")
+  status        UploadStatus @default(uploading)
+  origin        Json
+  expiresAt     DateTime     @map("expires_at") @db.Timestamptz(3)
+  completedAt   DateTime?    @map("completed_at") @db.Timestamptz(3)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  asset         Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([assetId])
+  @@map("upload_sessions")
+}
+
+model UsageSnapshot {
+  id           String   @id @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  takenOn      DateTime @map("taken_on") @db.Date
+  storageBytes BigInt   @map("storage_bytes")
+  objectCount  Int      @map("object_count")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, takenOn])
+  @@map("usage_snapshots")
+}

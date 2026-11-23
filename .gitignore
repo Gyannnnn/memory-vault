@@ -9,6 +9,7 @@ AGENTS.md
 .cursor/
 .windsurf/
 .aider*
+skills-lock.json
 .continue/
 
 # Secrets
@@ -55,3 +56,6 @@ Thumbs.db
 !.vscode/extensions.json
 *.swp
 *.log
+
+# Generated code
+apps/api/src/generated/
