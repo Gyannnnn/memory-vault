@@ -351,6 +351,9 @@ importers:
       commander:
         specifier: '>=14 <16'
         version: 15.1.0
+      sharp:
+        specifier: ^0.34.0 || ^0.35.0
+        version: 0.35.5(@types/node@24.19.2)
     devDependencies:
       '@memory-vault/config':
         specifier: workspace:*

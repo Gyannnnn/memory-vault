@@ -13,6 +13,7 @@ import { createPhoneStager } from './phone/stage';
 import { apiClient } from './auth/credentials';
 import { login, logout } from './auth/login';
 import { runUpload } from './upload/engine';
+import { review } from './review/command';
 import { buildReconciliation, printReconciliation, writeReconciliation } from './report/reconcile';
 
 function parseSourceId(value: string): SourceId {
@@ -195,6 +196,22 @@ program
       printReconciliation(report);
       console.log(`\nReport:\n  ${writeReconciliation(report, config.reportsDir).join('\n  ')}`);
       if (!report.total.invariantHolds) process.exitCode = 3;
+    } finally {
+      manifest.close();
+    }
+  });
+
+program
+  .command('review')
+  .description(
+    'Open the junk review page for files from WhatsApp, Telegram, screenshots, downloads and similar',
+  )
+  .argument('[sources...]', 'source ids (default: every scanned source)')
+  .option('--no-open', 'print the link instead of opening the browser')
+  .action(async (sources: string[], options: { open: boolean }) => {
+    const manifest = openManifest();
+    try {
+      await review(manifest, sourceIdsOrAll(manifest, sources), options);
     } finally {
       manifest.close();
     }

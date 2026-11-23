@@ -400,6 +400,30 @@ export class Manifest {
       .map(toFileRow);
   }
 
+  /** Review-route files that are not stored yet, with whether the same content uploads anyway from a normal folder. */
+  reviewItems(sourceIds: SourceId[]): (FileRow & { keptElsewhere: boolean })[] {
+    if (sourceIds.length === 0) return [];
+    const placeholders = sourceIds.map(() => '?').join(', ');
+    return this.db
+      .prepare(
+        `SELECT f.*, EXISTS (
+           SELECT 1 FROM files o WHERE o.sha256 = f.sha256 AND o.route = 'direct' AND o.selected = 1
+             AND o.entry_type = 'file' AND o.status != 'missing'
+         ) AS kept_elsewhere
+         FROM files f
+         WHERE f.source_id IN (${placeholders}) AND f.entry_type = 'file' AND f.selected = 1 AND f.route = 'review'
+           AND f.status IN ('pending', 'awaiting_review', 'skipped', 'failed')
+         ORDER BY f.source_id, f.path`,
+      )
+      .all(...sourceIds)
+      .map((row) => ({ ...toFileRow(row), keptElsewhere: row.kept_elsewhere === 1 }));
+  }
+
+  file(sourceId: SourceId, path: string): FileRow | undefined {
+    const row = this.db.prepare('SELECT * FROM files WHERE source_id = ? AND path = ?').get(sourceId, path);
+    return row ? toFileRow(row) : undefined;
+  }
+
   /** Every manifest row holding this content, across all sources. */
   rowsWithSha(sha256: string): FileRow[] {
     return this.db
