@@ -43,6 +43,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@memory-vault/api-client": "workspace:*",
     "@memory-vault/config": "workspace:*",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
