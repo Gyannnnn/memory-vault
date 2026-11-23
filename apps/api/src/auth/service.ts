@@ -52,14 +52,20 @@ export class AuthService {
 
   // ─── Accounts ──────────────────────────────────────────────────────────────
 
-  async createUser(input: { email: string; displayName: string; password: string }): Promise<{
+  async createUser(input: {
+    email: string;
+    displayName: string;
+    password: string;
+    timezone?: string;
+    userId?: string;
+  }): Promise<{
     userId: string;
     totpSecret: string;
     totpUri: string;
   }> {
     const existing = await this.db.user.findUnique({ where: { email: input.email } });
     if (existing) throw conflict('An account with this email already exists');
-    const userId = newId();
+    const userId = input.userId ?? newId();
     const totpSecret = newTotpSecret();
     const passwordHash = await hashSecret(input.password);
     await this.db.$transaction(async (tx) => {
@@ -68,6 +74,7 @@ export class AuthService {
           id: userId,
           email: input.email,
           displayName: input.displayName,
+          timezone: input.timezone ?? 'UTC',
           storageQuotaBytes: this.ctx.env.DEFAULT_QUOTA_BYTES,
         },
       });

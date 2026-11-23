@@ -25,6 +25,7 @@ model User {
   status            UserStatus @default(active)
   storageQuotaBytes BigInt     @map("storage_quota_bytes")
   storageUsedBytes  BigInt     @default(0) @map("storage_used_bytes")
+  timezone          String     @default("UTC")
   planCode          String     @default("personal") @map("plan_code")
   billingCustomerId String?    @map("billing_customer_id")
   createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
