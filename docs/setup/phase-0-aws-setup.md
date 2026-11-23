@@ -139,8 +139,10 @@ This is the safety net for overwritten or deleted objects: they stay recoverable
 **Rule 3 — `move-to-intelligent-tiering`**
 
 - Scope: **Apply to all objects in the bucket**.
-- Actions: tick **Transition current versions of objects between storage classes** → Storage class: **Intelligent-Tiering** → Days after object creation: **0**.
+- Actions: tick **only** **Transition current versions of objects between storage classes** → Storage class: **Intelligent-Tiering** → Days after object creation: **0**.
 - Acknowledge the small-objects notice.
+
+> ⚠️ This rule must **not** have "Expire current versions of objects" or "Permanently delete noncurrent versions" ticked. On a whole-bucket rule, an expiry permanently deletes your files. `pnpm aws:verify` fails loudly if any rule outside `test/` expires current files.
 
 The app already uploads straight into Intelligent-Tiering. This rule catches anything uploaded another way, such as drag-and-drop in the console.
 
