@@ -35,6 +35,10 @@ export default defineConfig(
     },
   },
   {
+    files: ['apps/cli/review-ui/**/*.ts', 'apps/web/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
     files: ['**/*.test.ts', '**/test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',

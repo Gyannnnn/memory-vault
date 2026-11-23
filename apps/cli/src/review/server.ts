@@ -244,8 +244,10 @@ export async function startReviewServer(
         return json(response, 401, { error: 'open the link printed by `vault review`' });
 
       if (request.method === 'GET' && (url.pathname === '/' || url.pathname.startsWith('/assets/'))) {
-        const file = url.pathname === '/' ? 'index.html' : normalize(url.pathname.slice('/assets/'.length));
-        if (file.startsWith('..')) return json(response, 404, { error: 'not found' });
+        const file = url.pathname === '/' ? 'index.html' : normalize(url.pathname.slice(1));
+        if (file.startsWith('..') || !(file === 'index.html' || file.startsWith('assets/'))) {
+          return json(response, 404, { error: 'not found' });
+        }
         const path = join(options.staticDir, file);
         if (!existsSync(path)) return json(response, 404, { error: 'not found' });
         response.writeHead(200, {

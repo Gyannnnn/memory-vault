@@ -57,6 +57,8 @@ beforeAll(async () => {
   writeFileSync(join(root, 'Camera/.temp-1.mp4'), '');
   const ui = mkdtempSync(join(tmpdir(), 'vault-review-ui-'));
   writeFileSync(join(ui, 'index.html'), '<!doctype html><title>Review</title>');
+  mkdirSync(join(ui, 'assets'));
+  writeFileSync(join(ui, 'assets/app.css'), 'body{}');
 
   manifest = new Manifest(':memory:');
   await scanLocalSource(manifest, 'laptop:review', root);
@@ -82,6 +84,10 @@ describe('review server', () => {
     expect(signIn.status).toBe(302);
     cookie = String(signIn.headers['set-cookie']).split(';')[0]!;
     expect((await get('/')).status).toBe(200);
+    const css = await get('/assets/app.css');
+    expect(css.status).toBe(200);
+    expect(css.headers['content-type']).toContain('text/css');
+    expect((await get('/assets/../../etc/passwd')).status).toBe(404);
   });
 
   it('refuses other host names (DNS rebinding)', async () => {

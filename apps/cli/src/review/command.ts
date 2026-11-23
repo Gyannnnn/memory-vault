@@ -16,7 +16,8 @@ export async function review(
   options: { open: boolean },
 ): Promise<void> {
   if (!existsSync(join(staticDir, 'index.html'))) {
-    throw new Error('the review page is not built yet; run `pnpm --filter @memory-vault/cli build:review`');
+    const { buildReviewUi } = await import('../../scripts/build-review');
+    await buildReviewUi();
   }
   for (const id of sourceIds) manifest.holdForReview(id);
   const server = await startReviewServer({
