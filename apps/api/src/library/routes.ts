@@ -1,20 +1,27 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { recordOriginsRequest, verifyAssetsRequest } from '@memory-vault/shared';
+import {
+  assetSearchQuery,
+  onThisDayQuery,
+  recordOriginsRequest,
+  timelineMonthParam,
+  verifyAssetsRequest,
+} from '@memory-vault/shared';
 import type { AppContext } from '../context';
-import { withUser } from '../db';
 import { authOf } from '../http/auth-middleware';
 import { parse } from '../http/errors';
 import { UploadService } from '../uploads/service';
+import { BrowseService } from './browse';
 
-const listAssetsQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(500).default(100),
-  cursor: z.uuid().optional(),
+const folderQuery = z.object({
+  cursor: z.string().max(300).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(200),
 });
 
 export function libraryRoutes(ctx: AppContext): Router {
   const router = Router();
   const uploads = new UploadService(ctx);
+  const browse = new BrowseService(ctx);
 
   router.post('/assets/origins', async (request, response) => {
     const { items } = parse(recordOriginsRequest, request.body);
@@ -27,33 +34,39 @@ export function libraryRoutes(ctx: AppContext): Router {
   });
 
   router.get('/assets', async (request, response) => {
-    const { limit, cursor } = parse(listAssetsQuery, request.query);
-    const { userId } = authOf(request);
-    const assets = await withUser(ctx.db, userId, (tx) =>
-      tx.asset.findMany({
-        where: { userId, status: 'verified', deletedAt: null },
-        orderBy: { id: 'desc' },
-        take: limit + 1,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-        select: {
-          id: true,
-          sha256: true,
-          sizeBytes: true,
-          mimeType: true,
-          kind: true,
-          originalName: true,
-          takenAt: true,
-          width: true,
-          height: true,
-          durationMs: true,
-        },
-      }),
-    );
-    const page = assets.slice(0, limit);
-    response.json({
-      items: page.map((asset) => ({ ...asset, sizeBytes: asset.sizeBytes.toString() })),
-      nextCursor: assets.length > limit ? page.at(-1)!.id : null,
-    });
+    response.json(await browse.search(authOf(request).userId, parse(assetSearchQuery, request.query)));
+  });
+
+  router.get('/assets/:id', async (request, response) => {
+    response.json(await browse.detail(authOf(request).userId, parse(z.uuid(), request.params.id)));
+  });
+
+  router.get('/timeline', async (request, response) => {
+    response.json(await browse.timeline(authOf(request).userId));
+  });
+
+  router.get('/timeline/:month', async (request, response) => {
+    const month = parse(timelineMonthParam, request.params.month);
+    response.json({ items: await browse.month(authOf(request).userId, month) });
+  });
+
+  router.get('/search/facets', async (request, response) => {
+    response.json(await browse.facets(authOf(request).userId));
+  });
+
+  router.get(['/folders', '/folders/:id'], async (request, response) => {
+    const id = request.params.id ? parse(z.uuid(), request.params.id) : null;
+    const { cursor, limit } = parse(folderQuery, request.query);
+    response.json(await browse.folder(authOf(request).userId, id, cursor, limit));
+  });
+
+  router.get('/map/points', async (request, response) => {
+    response.json(await browse.mapPoints(authOf(request).userId));
+  });
+
+  router.get('/memories/on-this-day', async (request, response) => {
+    const { date } = parse(onThisDayQuery, request.query);
+    response.json(await browse.onThisDay(authOf(request).userId, date));
   });
 
   return router;

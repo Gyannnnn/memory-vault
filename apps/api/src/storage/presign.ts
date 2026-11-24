@@ -61,13 +61,39 @@ export class Presigner {
     query?: Record<string, string>;
     expiresInSeconds: number;
   }): Promise<SignedRequest> {
+    return this.sign('PUT', input);
+  }
+
+  /**
+   * Presigns a GET. Pass the same `signingDate` for a while (e.g. the start of the
+   * hour) and the URL stays identical, so browsers can cache what it points to.
+   */
+  async get(input: {
+    key: string;
+    query?: Record<string, string>;
+    expiresInSeconds: number;
+    signingDate?: Date;
+  }): Promise<string> {
+    return (await this.sign('GET', { ...input, headers: {} })).url;
+  }
+
+  private async sign(
+    method: 'GET' | 'PUT',
+    input: {
+      key: string;
+      headers: Record<string, string>;
+      query?: Record<string, string>;
+      expiresInSeconds: number;
+      signingDate?: Date;
+    },
+  ): Promise<SignedRequest> {
     const target = this.target(input.key);
     const host = target.port ? `${target.hostname}:${target.port}` : target.hostname;
     const headers = Object.fromEntries(
       Object.entries(input.headers).map(([name, value]) => [name.toLowerCase(), value]),
     );
     const request = new HttpRequest({
-      method: 'PUT',
+      method,
       protocol: target.protocol,
       hostname: target.hostname,
       ...(target.port ? { port: target.port } : {}),
@@ -78,6 +104,7 @@ export class Presigner {
     const signed = await this.presigner.presign(request, {
       expiresIn: input.expiresInSeconds,
       unhoistableHeaders: new Set(Object.keys(headers)),
+      ...(input.signingDate ? { signingDate: input.signingDate } : {}),
     });
     const query = Object.entries(signed.query ?? {})
       .flatMap(([name, value]) =>
