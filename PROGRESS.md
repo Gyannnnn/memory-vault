@@ -4,38 +4,38 @@ Status legend: `todo` · `in progress` · `done` · `blocked`
 
 ## Phase 0 — Prerequisites
 
-| Task                                                         | Status  | Notes                                                              |
-| ------------------------------------------------------------ | ------- | ------------------------------------------------------------------ |
-| Node 24 + pnpm via corepack                                  | done    | `.nvmrc` pins 24                                                   |
-| adb (Android platform-tools)                                 | done    | Installed at `~/.local/opt/platform-tools`; the CLI finds it there |
-| Docker Desktop running                                       | done    |                                                                    |
-| Local secrets and `.env` files                               | done    | `pnpm secrets:init`                                                |
-| USB debugging on the S21 FE                                  | blocked | Needs the owner: setup guide §0.2                                  |
-| AWS account hardening (root MFA, contacts, budget)           | todo    | Owner: setup guide §A (recommended before the import)              |
-| S3 bucket, SQS queue, IAM user `memory-vault-app`            | done    | `pnpm aws:verify`: all 18 checks pass                              |
-| Paste AWS values into `apps/api/.env`, run `pnpm aws:verify` | done    | `pnpm test:aws` also passes against the real bucket                |
+| Task                                                         | Status | Notes                                                              |
+| ------------------------------------------------------------ | ------ | ------------------------------------------------------------------ |
+| Node 24 + pnpm via corepack                                  | done   | `.nvmrc` pins 24                                                   |
+| adb (Android platform-tools)                                 | done   | Installed at `~/.local/opt/platform-tools`; the CLI finds it there |
+| Docker Desktop running                                       | done   |                                                                    |
+| Local secrets and `.env` files                               | done   | `pnpm secrets:init`                                                |
+| USB debugging on the S21 FE                                  | done   | Phone connected and authorised                                     |
+| AWS account hardening (root MFA, contacts, budget)           | todo   | Owner: setup guide §A (recommended before the import)              |
+| S3 bucket, SQS queue, IAM user `memory-vault-app`            | done   | `pnpm aws:verify`: all 18 checks pass                              |
+| Paste AWS values into `apps/api/.env`, run `pnpm aws:verify` | done   | `pnpm test:aws` also passes against the real bucket                |
 
 ## Phase 1 — Backend, auth, upload everything
 
-| #   | Task                                                                      | Status      | Notes                                                                                |
-| --- | ------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------ |
-| 1   | Monorepo scaffold (pnpm, Turborepo, TS, ESLint, Prettier)                 | done        |                                                                                      |
-| 2   | Docker Compose (Postgres 17 + pgvector, Redis 8, S3 test gateway)         | done        | Postgres on 5433 to avoid another local Postgres                                     |
-| 3   | Dry-run scanner + manifest + junk rules                                   | done        | Laptop: 15,537 files / 86.9 GB; source unchanged afterwards (verified)               |
-| 3b  | Phone inventory + on-phone hashing (adb, read-only allowlist)             | done        | Waiting for USB debugging to run it                                                  |
-| C1  | **Checkpoint:** show both dry runs + phone inventory                      | in progress | Laptop dry run done; phone pending                                                   |
-| 4   | AWS setup guide + `pnpm aws:verify`                                       | done        | `docs/setup/phase-0-aws-setup.md`                                                    |
-| 5   | Prisma schema, migrations, row-level security                             | done        |                                                                                      |
-| 6   | API: auth (password + TOTP, recovery codes, passkeys, rotating sessions)  | done        | Passkey UI comes with the web app                                                    |
-| 6b  | API: uploads (check, presign, multipart, complete, verify)                | done        | SHA-256 enforced by S3 per request/part                                              |
-| 7   | CLI: login, resumable upload engine, progress, phone pull, reconciliation | done        | End-to-end test covers resume and reconciliation                                     |
-| 8   | Workers: ingest, S3 events, integrity, backups, catalogue, rebuild-index  | done        | Smoke-tested in the Docker image on real HEIC, DNG, MP4, JPG, PNG and WhatsApp files |
-| 8b  | Python junk classifier (CLIP, CPU)                                        | done        | Model pinned to a commit; image builds with the other services                       |
-| 9   | Junk review page (`vault review`)                                         | done        | Built with ui-ux-pro-max + shared tokens; checked in light and dark                  |
-| 10  | Tests for critical paths                                                  | done        | 140+ tests: auth, uploads, checksums, isolation, e2e, rebuild                        |
-| 11  | Docs: restore runbook, architecture, costs, credentials                   | done        |                                                                                      |
-| 12  | Run the import: laptop → phone batches → review → reconciliation          | blocked     | Needs the owner's account (`vault-admin create-user`) and the phone                  |
-| C5  | **Checkpoint:** Phase 1 summary + feature suggestions                     | todo        |                                                                                      |
+| #   | Task                                                                      | Status      | Notes                                                                                                                                                                     |
+| --- | ------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Monorepo scaffold (pnpm, Turborepo, TS, ESLint, Prettier)                 | done        |                                                                                                                                                                           |
+| 2   | Docker Compose (Postgres 17 + pgvector, Redis 8, S3 test gateway)         | done        | Postgres on 5433 to avoid another local Postgres                                                                                                                          |
+| 3   | Dry-run scanner + manifest + junk rules                                   | done        | Laptop: 15,537 files / 86.9 GB; source unchanged afterwards (verified)                                                                                                    |
+| 3b  | Phone inventory + on-phone hashing (adb, read-only allowlist)             | done        | Waiting for USB debugging to run it                                                                                                                                       |
+| C1  | **Checkpoint:** show both dry runs + phone inventory                      | done        | Laptop and phone dry runs reviewed; phone listing bug found and fixed                                                                                                     |
+| 4   | AWS setup guide + `pnpm aws:verify`                                       | done        | `docs/setup/phase-0-aws-setup.md`                                                                                                                                         |
+| 5   | Prisma schema, migrations, row-level security                             | done        |                                                                                                                                                                           |
+| 6   | API: auth (password + TOTP, recovery codes, passkeys, rotating sessions)  | done        | Passkey UI comes with the web app                                                                                                                                         |
+| 6b  | API: uploads (check, presign, multipart, complete, verify)                | done        | SHA-256 enforced by S3 per request/part                                                                                                                                   |
+| 7   | CLI: login, resumable upload engine, progress, phone pull, reconciliation | done        | End-to-end test covers resume and reconciliation                                                                                                                          |
+| 8   | Workers: ingest, S3 events, integrity, backups, catalogue, rebuild-index  | done        | Smoke-tested in the Docker image on real HEIC, DNG, MP4, JPG, PNG and WhatsApp files                                                                                      |
+| 8b  | Python junk classifier (CLIP, CPU)                                        | done        | Model pinned to a commit; image builds with the other services                                                                                                            |
+| 9   | Junk review page (`vault review`)                                         | done        | Built with ui-ux-pro-max + shared tokens; checked in light and dark                                                                                                       |
+| 10  | Tests for critical paths                                                  | done        | 140+ tests: auth, uploads, checksums, isolation, e2e, rebuild                                                                                                             |
+| 11  | Docs: restore runbook, architecture, costs, credentials                   | done        |                                                                                                                                                                           |
+| 12  | Run the import: laptop → phone → review → reconciliation                  | done        | 65,900 files found, each counted once: 20,346 uploaded (119 GB, all verified in S3), 12,543 duplicates, 22,576 skipped in review, 10,425 excluded, 10 undecided, 0 failed |
+| C5  | **Checkpoint:** Phase 1 summary + feature suggestions                     | in progress | Waiting for the owner's review and yes/no on suggested features                                                                                                           |
 
 ## Phase 2 — Web app (outline)
 
