@@ -63,3 +63,7 @@ apps/api/src/generated/
 # Local notes
 aws-urls.txt
 *.local.txt
+
+# Generated web files
+apps/web/src/app/tokens.generated.css
+apps/web/next-env.d.ts

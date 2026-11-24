@@ -2,3 +2,5 @@ pnpm-lock.yaml
 reports/
 **/generated/
 **/dist/
+# Written by pnpm itself (allowBuilds, release-age excludes)
+pnpm-workspace.yaml

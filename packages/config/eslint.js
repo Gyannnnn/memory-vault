@@ -1,5 +1,7 @@
 import js from '@eslint/js';
+import nextPlugin from '@next/eslint-plugin-next';
 import prettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
 import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -37,6 +39,11 @@ export default defineConfig(
   {
     files: ['apps/cli/review-ui/**/*.ts', 'apps/web/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.browser } },
+  },
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat['recommended-latest'], nextPlugin.configs['core-web-vitals']],
+    settings: { next: { rootDir: 'apps/web/' } },
   },
   {
     files: ['**/*.test.ts', '**/test/**/*.ts'],
