@@ -56,6 +56,10 @@ export function authRoutes(ctx: AppContext): Router {
     response.status(204).end();
   });
 
+  router.get('/me', signedIn, async (request, response) => {
+    response.json(await auth.me(authOf(request).userId));
+  });
+
   router.get('/sessions', signedIn, async (request, response) => {
     const { userId, sessionId } = authOf(request);
     response.json({ sessions: await auth.listSessions(userId, sessionId) });

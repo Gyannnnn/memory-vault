@@ -377,6 +377,27 @@ export class AuthService {
     });
   }
 
+  /** The signed-in account and the state of its sign-in methods, for the web app's shell and security page. */
+  async me(userId: string) {
+    const user = await this.db.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: {
+        totp: { select: { confirmedAt: true, createdAt: true } },
+        _count: { select: { passkeys: true, recoveryCodes: { where: { usedAt: null } } } },
+      },
+    });
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      timezone: user.timezone,
+      storageUsedBytes: Number(user.storageUsedBytes),
+      totpEnrolledAt: (user.totp?.confirmedAt ?? user.totp?.createdAt)?.toISOString() ?? null,
+      passkeyCount: user._count.passkeys,
+      recoveryCodesLeft: user._count.recoveryCodes,
+    };
+  }
+
   async listSessions(userId: string, currentSessionId: string): Promise<SessionSummary[]> {
     const sessions = await this.db.session.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
@@ -561,7 +582,8 @@ export class AuthService {
         meta,
         metadata: { step: `step-up-${step}` },
       });
-      throw unauthorized('Password or code is incorrect');
+      // 403, not 401: the session itself is fine, so clients must not treat this as being signed out.
+      throw new HttpError(403, 'step_up_failed', 'Password or code is incorrect');
     };
     if (!user.password || !(await verifySecret(user.password.hash, input.password))) await fail('password');
     if (input.code) {

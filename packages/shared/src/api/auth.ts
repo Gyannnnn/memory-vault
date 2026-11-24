@@ -86,6 +86,28 @@ export const totpEnrollResponse = z.object({ secret: z.string(), uri: z.string()
 export const recoveryCodesResponse = z.object({ codes: z.array(z.string()).length(10) });
 export const passkeyRenameRequest = z.object({ nickname: z.string().trim().min(1).max(60) });
 
+export const meResponse = z.object({
+  id: z.uuid(),
+  email: z.string(),
+  displayName: z.string(),
+  timezone: z.string(),
+  storageUsedBytes: z.number(),
+  totpEnrolledAt: z.iso.datetime().nullable(),
+  passkeyCount: z.number().int(),
+  recoveryCodesLeft: z.number().int(),
+});
+
+export const passkeySummary = z.object({
+  id: z.uuid(),
+  nickname: z.string(),
+  deviceType: z.string(),
+  backedUp: z.boolean(),
+  createdAt: z.iso.datetime(),
+  lastUsedAt: z.iso.datetime().nullable(),
+});
+
+export type MeResponse = z.infer<typeof meResponse>;
+export type PasskeySummary = z.infer<typeof passkeySummary>;
 export type StepUpRequest = z.infer<typeof stepUpRequest>;
 export type PasswordLoginRequest = z.infer<typeof passwordLoginRequest>;
 export type PasswordLoginResponse = z.infer<typeof passwordLoginResponse>;

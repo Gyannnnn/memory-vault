@@ -225,7 +225,8 @@ describe('security settings (step-up required)', () => {
       .post('/v1/auth/recovery-codes')
       .set(bearer(user.accessToken))
       .send({ password: 'wrong password!!', code: nextStepCode(user.totpSecret) });
-    expect(wrong.status).toBe(401);
+    expect(wrong.status).toBe(403);
+    expect(wrong.body.error.code).toBe('step_up_failed');
 
     const viaRecovery = await api()
       .post('/v1/auth/recovery-codes')
@@ -306,5 +307,20 @@ describe('security settings (step-up required)', () => {
     ).toBe(204);
     const list = await api().get('/v1/auth/passkeys').set(bearer(user.accessToken));
     expect(list.body.passkeys[0].nickname).toBe('YubiKey 5C');
+  });
+
+  it('describes only the signed-in account', async () => {
+    const user = await signUp(harness, 'a@example.com');
+    await signUp(harness, 'b@example.com');
+    expect((await api().get('/v1/auth/me')).status).toBe(401);
+    const me = await api().get('/v1/auth/me').set(bearer(user.accessToken));
+    expect(me.status).toBe(200);
+    expect(me.body).toMatchObject({
+      id: user.userId,
+      email: user.email,
+      passkeyCount: 0,
+      recoveryCodesLeft: 10,
+    });
+    expect(me.body.totpEnrolledAt).not.toBeNull();
   });
 });
