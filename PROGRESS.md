@@ -17,39 +17,41 @@ Status legend: `todo` · `in progress` · `done` · `blocked`
 
 ## Phase 1 — Backend, auth, upload everything
 
-| #   | Task                                                                      | Status      | Notes                                                                                                                                                                     |
-| --- | ------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Monorepo scaffold (pnpm, Turborepo, TS, ESLint, Prettier)                 | done        |                                                                                                                                                                           |
-| 2   | Docker Compose (Postgres 17 + pgvector, Redis 8, S3 test gateway)         | done        | Postgres on 5433 to avoid another local Postgres                                                                                                                          |
-| 3   | Dry-run scanner + manifest + junk rules                                   | done        | Laptop: 15,537 files / 86.9 GB; source unchanged afterwards (verified)                                                                                                    |
-| 3b  | Phone inventory + on-phone hashing (adb, read-only allowlist)             | done        | Waiting for USB debugging to run it                                                                                                                                       |
-| C1  | **Checkpoint:** show both dry runs + phone inventory                      | done        | Laptop and phone dry runs reviewed; phone listing bug found and fixed                                                                                                     |
-| 4   | AWS setup guide + `pnpm aws:verify`                                       | done        | `docs/setup/phase-0-aws-setup.md`                                                                                                                                         |
-| 5   | Prisma schema, migrations, row-level security                             | done        |                                                                                                                                                                           |
-| 6   | API: auth (password + TOTP, recovery codes, passkeys, rotating sessions)  | done        | Passkey UI comes with the web app                                                                                                                                         |
-| 6b  | API: uploads (check, presign, multipart, complete, verify)                | done        | SHA-256 enforced by S3 per request/part                                                                                                                                   |
-| 7   | CLI: login, resumable upload engine, progress, phone pull, reconciliation | done        | End-to-end test covers resume and reconciliation                                                                                                                          |
-| 8   | Workers: ingest, S3 events, integrity, backups, catalogue, rebuild-index  | done        | Smoke-tested in the Docker image on real HEIC, DNG, MP4, JPG, PNG and WhatsApp files                                                                                      |
-| 8b  | Python junk classifier (CLIP, CPU)                                        | done        | Model pinned to a commit; image builds with the other services                                                                                                            |
-| 9   | Junk review page (`vault review`)                                         | done        | Built with ui-ux-pro-max + shared tokens; checked in light and dark                                                                                                       |
-| 10  | Tests for critical paths                                                  | done        | 140+ tests: auth, uploads, checksums, isolation, e2e, rebuild                                                                                                             |
-| 11  | Docs: restore runbook, architecture, costs, credentials                   | done        |                                                                                                                                                                           |
-| 12  | Run the import: laptop → phone → review → reconciliation                  | done        | 65,900 files found, each counted once: 20,346 uploaded (119 GB, all verified in S3), 12,543 duplicates, 22,576 skipped in review, 10,425 excluded, 10 undecided, 0 failed |
-| C5  | **Checkpoint:** Phase 1 summary + feature suggestions                     | in progress | Waiting for the owner's review and yes/no on suggested features                                                                                                           |
+| #   | Task                                                                      | Status | Notes                                                                                                                                                                     |
+| --- | ------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Monorepo scaffold (pnpm, Turborepo, TS, ESLint, Prettier)                 | done   |                                                                                                                                                                           |
+| 2   | Docker Compose (Postgres 17 + pgvector, Redis 8, S3 test gateway)         | done   | Postgres on 5433 to avoid another local Postgres                                                                                                                          |
+| 3   | Dry-run scanner + manifest + junk rules                                   | done   | Laptop: 15,537 files / 86.9 GB; source unchanged afterwards (verified)                                                                                                    |
+| 3b  | Phone inventory + on-phone hashing (adb, read-only allowlist)             | done   | Waiting for USB debugging to run it                                                                                                                                       |
+| C1  | **Checkpoint:** show both dry runs + phone inventory                      | done   | Laptop and phone dry runs reviewed; phone listing bug found and fixed                                                                                                     |
+| 4   | AWS setup guide + `pnpm aws:verify`                                       | done   | `docs/setup/phase-0-aws-setup.md`                                                                                                                                         |
+| 5   | Prisma schema, migrations, row-level security                             | done   |                                                                                                                                                                           |
+| 6   | API: auth (password + TOTP, recovery codes, passkeys, rotating sessions)  | done   | Passkey UI comes with the web app                                                                                                                                         |
+| 6b  | API: uploads (check, presign, multipart, complete, verify)                | done   | SHA-256 enforced by S3 per request/part                                                                                                                                   |
+| 7   | CLI: login, resumable upload engine, progress, phone pull, reconciliation | done   | End-to-end test covers resume and reconciliation                                                                                                                          |
+| 8   | Workers: ingest, S3 events, integrity, backups, catalogue, rebuild-index  | done   | Smoke-tested in the Docker image on real HEIC, DNG, MP4, JPG, PNG and WhatsApp files                                                                                      |
+| 8b  | Python junk classifier (CLIP, CPU)                                        | done   | Model pinned to a commit; image builds with the other services                                                                                                            |
+| 9   | Junk review page (`vault review`)                                         | done   | Built with ui-ux-pro-max + shared tokens; checked in light and dark                                                                                                       |
+| 10  | Tests for critical paths                                                  | done   | 140+ tests: auth, uploads, checksums, isolation, e2e, rebuild                                                                                                             |
+| 11  | Docs: restore runbook, architecture, costs, credentials                   | done   |                                                                                                                                                                           |
+| 12  | Run the import: laptop → phone → review → reconciliation                  | done   | 65,900 files found, each counted once: 20,346 uploaded (119 GB, all verified in S3), 12,543 duplicates, 22,576 skipped in review, 10,425 excluded, 10 undecided, 0 failed |
+| C5  | **Checkpoint:** Phase 1 summary + feature suggestions                     | done   | Reviewed 2026-11-24: all 16 suggested features accepted; Phase 2 plan approved                                                                                            |
 
 ## Phase 2 — Web app
 
 Runs on localhost for now; media via short-lived presigned S3 URLs (CloudFront and a domain come with deployment). Plan agreed 2026-11-24: milestones M0 (foundation and security screens) → M1 (browse) → M2 (upload, video, downloads) → M3 (organise, share, protect) → M4 (people, OCR, trips) → M5 (account continuity) → M6 (stats, encrypted folders).
 
-| Milestone                                  | Status      |
-| ------------------------------------------ | ----------- |
-| M0 Web foundation and security screens     | in progress |
-| M1 Browse                                  | todo        |
-| M2 Upload, video, downloads, motion photos | todo        |
-| M3 Organise, share and protect             | todo        |
-| M4 People, OCR, trips                      | todo        |
-| M5 Account continuity                      | todo        |
-| M6 Stats, cost, encrypted folders          | todo        |
+| Milestone                                  | Status                   |
+| ------------------------------------------ | ------------------------ |
+| M0 Web foundation and security screens     | built, awaiting check-in |
+| M1 Browse                                  | todo                     |
+| M2 Upload, video, downloads, motion photos | todo                     |
+| M3 Organise, share and protect             | todo                     |
+| M4 People, OCR, trips                      | todo                     |
+| M5 Account continuity                      | todo                     |
+| M6 Stats, cost, encrypted folders          | todo                     |
+
+M0 delivered: `apps/web` (Next.js 16, Tailwind 4 with the shared design tokens, light/dark/system themes); sign-in with password + authenticator code, recovery code or passkey; tokens only in httpOnly cookies, renewed by `src/proxy.ts`; the app shell with every section in place; Settings › Security (passkeys and security keys: add, rename, remove; authenticator replacement and new recovery codes, both behind a fresh password + second-factor check; signed-in devices with sign out). Checked end to end in headless Chrome with a virtual authenticator against a throwaway API and test database.
 
 Core (from the brief): browse, timeline, map, search and filters, folders, zip download, upload with progress, video playback (HLS + Vidstack), sharing links, statistics, People (faces), passkey sign-in screens.
 
