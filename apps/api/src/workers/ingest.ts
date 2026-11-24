@@ -192,7 +192,7 @@ export async function processIngest(ctx: IngestContext, job: IngestJob): Promise
       // Streaming versions next; a local copy makes that much quicker, so those go first.
       await ctx.jobs?.transcode(
         { userId: job.userId, assetId: asset.id, ...(job.localPath ? { localPath: job.localPath } : {}) },
-        { priority: original.from === 'local' ? 1 : 2 },
+        { priority: original.from === 'local' ? 2 : 3 },
       );
     }
     return 'processed';

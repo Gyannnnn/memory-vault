@@ -15,7 +15,7 @@ export interface TranscodeJob {
 
 export interface Jobs {
   ingest(job: IngestJob): Promise<void>;
-  /** Streaming versions of a video. `priority`: lower runs first (1 = has a local copy). */
+  /** Streaming versions of a video. `priority`: lower runs first: 1 is kept for short motion clips, 2 is a video with a local copy, 3 one that must be downloaded. */
   transcode(job: TranscodeJob, options?: { priority?: number }): Promise<void>;
   /** The playable clip of a motion photo (same queue as videos; short). */
   motion(job: TranscodeJob): Promise<void>;

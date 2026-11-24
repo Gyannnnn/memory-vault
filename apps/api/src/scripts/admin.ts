@@ -271,7 +271,7 @@ program
         for (const video of queued)
           await jobs.transcode(
             { userId: video.user_id, assetId: video.id },
-            { priority: video.local ? 1 : 2 },
+            { priority: video.local ? 2 : 3 },
           );
         console.log(
           `Queued ${queued.length.toLocaleString()}. The worker makes one at a time, at low priority.`,
