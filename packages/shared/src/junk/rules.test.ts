@@ -30,6 +30,7 @@ describe('classifyPath', () => {
     ['Download/download (1).jpg', ['downloads']],
     ['DCIM/Camera/IMG-20240319-WA0021.jpg', ['messenger-filename']],
     ['DCIM/Camera/.trashed-1767225600-20251201_101010.jpg', ['phone-trash']],
+    ['Android/.Trash/com.sec.android.gallery3d/1700000000000/IMG_1.jpg', ['phone-trash']],
     ['s21 fe camera/Camera/.temp-20250421_222548922_20.mp4', ['temp-file']],
     ['DCIM/Camera/.pending-1767225600-20251201_101010.mp4', ['temp-file']],
     ['DCIM/.thumbnails/1234.jpg', ['thumbnail-cache']],

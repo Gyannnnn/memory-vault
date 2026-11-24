@@ -74,6 +74,7 @@ const knownFolders = [
   /^private$/,
   /^\.statuses$/,
   /^\.thumbnails$/,
+  /^\.trash$/,
   /whatsapp/,
   /telegram/,
   /^(com|org|net|in|io)\./,
@@ -132,7 +133,12 @@ export function classifyPath(relativePath: string): PathClassification {
   ) {
     reasons.add('messenger-filename');
   }
-  if (lowerName.startsWith('.trashed-')) reasons.add('phone-trash');
+  if (
+    lowerName.startsWith('.trashed-') ||
+    lowerFolders.some((folder) => folder === '.trash' || folder === '.recyclebin')
+  ) {
+    reasons.add('phone-trash');
+  }
   if (/^\.(temp|pending)-/.test(lowerName) || /\.(tmp|part|crdownload)$/.test(lowerName)) {
     reasons.add('temp-file');
   }
