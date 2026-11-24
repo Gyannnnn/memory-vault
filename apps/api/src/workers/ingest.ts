@@ -184,6 +184,12 @@ export async function processIngest(ctx: IngestContext, job: IngestJob): Promise
               : 'no preview could be produced',
         },
       });
+      // Nearest town from the bundled GeoNames table; nothing leaves this database.
+      await tx.$executeRaw`
+        UPDATE assets SET place_id = CASE
+          WHEN gps_latitude IS NULL OR gps_longitude IS NULL THEN NULL
+          ELSE nearest_place(gps_latitude, gps_longitude) END
+        WHERE id = ${asset.id}::uuid`;
     });
     return 'processed';
   } catch (error) {

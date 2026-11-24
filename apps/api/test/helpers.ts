@@ -3,7 +3,7 @@ import request from 'supertest';
 import { AuthService } from '../src/auth/service';
 import { currentTotpCode } from '../src/auth/totp';
 import { closeContext, createContext, type AppContext } from '../src/context';
-import { createDb } from '../src/db';
+import { createDb, type Db } from '../src/db';
 import { env, resetEnvForTests } from '../src/env';
 import { createApp } from '../src/http/app';
 import type { IngestJob, Jobs } from '../src/workers/queues';
@@ -26,6 +26,8 @@ export interface Harness {
   app: Express;
   jobs: FakeJobs;
   auth: AuthService;
+  /** Owner connection (bypasses row-level security): for fixtures such as reference data. */
+  owner: Db;
   reset(): Promise<void>;
   close(): Promise<void>;
 }
@@ -46,6 +48,7 @@ const TABLES = [
   'totp_credentials',
   'password_credentials',
   'users',
+  'places',
 ];
 
 export async function createHarness(): Promise<Harness> {
@@ -58,6 +61,7 @@ export async function createHarness(): Promise<Harness> {
     app: createApp(ctx),
     jobs,
     auth: new AuthService(ctx),
+    owner,
     async reset() {
       await owner.$executeRawUnsafe(`TRUNCATE ${TABLES.join(', ')} CASCADE`);
       await ctx.redis.flushdb();

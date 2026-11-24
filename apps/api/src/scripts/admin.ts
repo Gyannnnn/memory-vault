@@ -5,7 +5,9 @@ import qrcode from 'qrcode-terminal';
 import { emailSchema, passwordSchema } from '@memory-vault/shared';
 import { AuthService } from '../auth/service';
 import { closeContext, createContext } from '../context';
+import { createDb } from '../db';
 import { env } from '../env';
+import { geocodeAllAssets, parsePlaces, readGeonames, savePlaces } from '../places/geonames';
 import { runCatalogExport, runDatabaseBackup, runIntegrityCheck } from '../workers/maintenance';
 import { createJobs } from '../workers/queues';
 import { rebuildIndex } from '../workers/rebuild';
@@ -175,6 +177,54 @@ program
         await jobs.close();
       }
     });
+  });
+
+program
+  .command('load-places')
+  .description('Load GeoNames place names (CC BY 4.0) and name the place of every photo with GPS')
+  .option(
+    '--from <dir>',
+    'read cities1000.zip, admin1CodesASCII.txt and countryInfo.txt from this folder instead of downloading',
+  )
+  .action(async (options: { from?: string }) => {
+    const config = env();
+    if (!config.DATABASE_MIGRATE_URL)
+      throw new Error('DATABASE_MIGRATE_URL is needed: places are written by the owner role');
+    console.log(
+      options.from ? `Reading GeoNames files from ${options.from}` : 'Downloading GeoNames (about 10 MB)…',
+    );
+    const files = await readGeonames(options.from);
+    const places = parsePlaces(files.cities, files.admin1, files.countries);
+    console.log(`Saving ${places.length.toLocaleString()} places…`);
+    const owner = createDb(config.DATABASE_MIGRATE_URL);
+    try {
+      await savePlaces(owner, places);
+      const { withGps, placed } = await geocodeAllAssets(owner);
+      console.log(
+        `Done. ${placed.toLocaleString()} of ${withGps.toLocaleString()} files with GPS now have a place name.`,
+      );
+    } finally {
+      await owner.$disconnect();
+    }
+  });
+
+program
+  .command('geocode')
+  .description('Name the place of every photo with GPS from the loaded places (no download)')
+  .action(async () => {
+    const config = env();
+    if (!config.DATABASE_MIGRATE_URL) throw new Error('DATABASE_MIGRATE_URL is needed');
+    const owner = createDb(config.DATABASE_MIGRATE_URL);
+    try {
+      const [loaded] = await owner.$queryRaw<{ count: number }[]>`SELECT count(*)::int AS count FROM places`;
+      if (!loaded?.count) throw new Error('No places loaded yet: run `pnpm vault-admin load-places` first');
+      const { withGps, placed } = await geocodeAllAssets(owner);
+      console.log(
+        `${placed.toLocaleString()} of ${withGps.toLocaleString()} files with GPS have a place name.`,
+      );
+    } finally {
+      await owner.$disconnect();
+    }
   });
 
 program.parseAsync().catch((error: unknown) => {

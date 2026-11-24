@@ -193,6 +193,12 @@ model Asset {
   isMotionPhoto        Boolean     @default(false) @map("is_motion_photo")
   phash                String?
   exif                 Json?
+  /// Wall-clock time at capture (no zone). Set by the assets_local_time trigger, never by the app.
+  localAt              DateTime?   @map("local_at") @db.Timestamp(3)
+  /// Nearest GeoNames place to the GPS position.
+  placeId              Int?        @map("place_id")
+  /// Full-text search document. Maintained by triggers on assets and asset_origins.
+  searchTsv            Unsupported("tsvector")? @map("search_tsv")
   processedAt          DateTime?   @map("processed_at") @db.Timestamptz(3)
   processingError      String?     @map("processing_error")
   deletedAt            DateTime?   @map("deleted_at") @db.Timestamptz(3)
@@ -200,6 +206,7 @@ model Asset {
   updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  place          Place?          @relation(fields: [placeId], references: [id], onDelete: SetNull)
   derivatives    Derivative[]
   entries        FileEntry[]
   origins        AssetOrigin[]
@@ -209,7 +216,31 @@ model Asset {
   @@index([userId, takenAt(sort: Desc), id])
   @@index([userId, createdAt(sort: Desc), id])
   @@index([userId, kind])
+  @@index([userId, localAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, placeId])
+  // Also defined in SQL (migration 20261124120000_browse): GIN indexes on search_tsv and
+  // original_name (trigram), and the triggers that keep local_at and search_tsv current.
   @@map("assets")
+}
+
+// ─── Reference data (not per user, no row-level security) ────────────────────
+
+/// GeoNames cities1000 (CC BY 4.0), loaded by `vault-admin load-places`. Read-only for the app role.
+model Place {
+  id          Int                         @id
+  name        String
+  asciiName   String                      @map("ascii_name")
+  latitude    Float
+  longitude   Float
+  /// Unit vector on the sphere, for nearest-place lookups (pgvector HNSW index).
+  position    Unsupported("vector(3)")
+  countryCode String                      @map("country_code")
+  countryName String?                     @map("country_name")
+  admin1Name  String?                     @map("admin1_name")
+  population  BigInt                      @default(0)
+  assets      Asset[]
+
+  @@map("places")
 }
 
 model Derivative {
