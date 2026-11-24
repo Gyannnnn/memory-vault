@@ -38,14 +38,20 @@ export async function classify(manifest: Manifest, sourceIds: SourceId[]): Promi
     for (let start = 0; start < pending.length && !signal.aborted; start += BATCH) {
       const batch: { row: FileRow; path: string }[] = [];
       for (const row of pending.slice(start, start + BATCH)) {
+        if (signal.aborted) break;
         const source = manifest.getSource(row.sourceId)!;
-        const hostPath =
-          source.kind === 'local'
-            ? createSourceReader(source.root).absolutePath(row.path)
-            : await stage(source, row, signal).then((file) => file.reader.absolutePath(file.relativePath));
-        const mapped = containerPath(hostPath);
-        if (mapped) batch.push({ row, path: mapped });
-        else unreadable += 1;
+        try {
+          const hostPath =
+            source.kind === 'local'
+              ? createSourceReader(source.root).absolutePath(row.path)
+              : await stage(source, row, signal).then((file) => file.reader.absolutePath(file.relativePath));
+          const mapped = containerPath(hostPath);
+          if (mapped) batch.push({ row, path: mapped });
+          else unreadable += 1;
+        } catch {
+          // One unreadable file must not stop the rest; it simply stays unscored.
+          unreadable += 1;
+        }
       }
       if (batch.length === 0) continue;
       const response = await fetch(`${config.mlUrl}/junk`, {
