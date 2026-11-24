@@ -29,6 +29,7 @@ import { newTotpSecret, totpUri, verifyTotp } from './totp';
 const REFRESH_TOKEN_DAYS = 30;
 const SESSION_MAX_DAYS = 365;
 const RECOVERY_CODE_COUNT = 10;
+const REFRESH_GRACE_MS = 30_000;
 const CHALLENGE_SECONDS = 300;
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -292,6 +293,13 @@ export class AuthService {
     if (!record) throw unauthorized('Sign in again');
     const { session } = record;
     if (claimed.count === 0) {
+      // A browser often refreshes from several requests at once. Within a short grace
+      // window, the same token gets the same answer instead of being treated as stolen.
+      if (record.usedAt && !session.revokedAt && now.getTime() - record.usedAt.getTime() < REFRESH_GRACE_MS) {
+        const cached = await this.awaitGraceResponse(hash);
+        if (cached) return cached;
+        throw unauthorized('Sign in again');
+      }
       if (record.usedAt && !session.revokedAt) {
         await this.revokeSession(session.userId, session.id, 'refresh_token_reuse');
         await audit(this.db, {
@@ -320,7 +328,7 @@ export class AuthService {
       }),
     ]);
     const access = await signAccessToken(this.ctx.keys, { userId: session.userId, sessionId: session.id });
-    return {
+    const response: TokenResponse = {
       accessToken: access.token,
       accessTokenExpiresAt: access.expiresAt.toISOString(),
       refreshToken: next,
@@ -328,6 +336,26 @@ export class AuthService {
       sessionId: session.id,
       user: { id: session.user.id, email: session.user.email, displayName: session.user.displayName },
     };
+    await this.ctx.redis.set(
+      `refresh-grace:${hash}`,
+      encrypt(Buffer.from(JSON.stringify(response)), this.ctx.env.DATA_ENCRYPTION_KEY).toString('base64'),
+      'PX',
+      REFRESH_GRACE_MS,
+    );
+    return response;
+  }
+
+  private async awaitGraceResponse(hash: string): Promise<TokenResponse | null> {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const sealed = await this.ctx.redis.get(`refresh-grace:${hash}`);
+      if (sealed) {
+        return JSON.parse(
+          decrypt(Buffer.from(sealed, 'base64'), this.ctx.env.DATA_ENCRYPTION_KEY).toString(),
+        ) as TokenResponse;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    return null;
   }
 
   async revokeSession(userId: string, sessionId: string, reason: string, meta?: RequestMeta): Promise<void> {

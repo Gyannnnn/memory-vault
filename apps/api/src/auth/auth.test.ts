@@ -104,6 +104,12 @@ describe('sessions', () => {
     expect(rotated.status).toBe(200);
     expect(rotated.body.refreshToken).not.toBe(user.refreshToken);
 
+    // Outside the 30-second grace window an old token means it was copied.
+    await harness.ctx.redis.flushdb();
+    await harness.ctx.db.refreshToken.updateMany({
+      where: { sessionId: user.sessionId, usedAt: { not: null } },
+      data: { usedAt: new Date(Date.now() - 60_000) },
+    });
     const reuse = await api().post('/v1/auth/refresh').send({ refreshToken: user.refreshToken });
     expect(reuse.status).toBe(401);
     const afterReuse = await api().post('/v1/auth/refresh').send({ refreshToken: rotated.body.refreshToken });
@@ -114,6 +120,20 @@ describe('sessions', () => {
       where: { type: 'auth.refresh_reuse_detected' },
     });
     expect(events).toHaveLength(1);
+  });
+
+  it('answers simultaneous refreshes with the same tokens instead of revoking the session', async () => {
+    const user = await signUp(harness, 'a@example.com');
+    const [first, second, third] = await Promise.all(
+      [1, 2, 3].map(() => api().post('/v1/auth/refresh').send({ refreshToken: user.refreshToken })),
+    );
+    expect([first!.status, second!.status, third!.status]).toEqual([200, 200, 200]);
+    expect(
+      new Set([first!.body.refreshToken, second!.body.refreshToken, third!.body.refreshToken]).size,
+    ).toBe(1);
+    expect((await api().get('/v1/me').set(bearer(first!.body.accessToken))).status).toBe(200);
+    const next = await api().post('/v1/auth/refresh').send({ refreshToken: first!.body.refreshToken });
+    expect(next.status).toBe(200);
   });
 
   it('signing out a device stops its access token immediately', async () => {
