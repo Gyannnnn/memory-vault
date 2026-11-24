@@ -231,7 +231,12 @@ program
   .command('transcode-backfill')
   .description('Queue streaming versions for every video that has none (laptop copies first, newest first)')
   .option('--dry-run', 'only count what would be queued')
-  .action(async (options: { dryRun?: boolean }) => {
+  .option('--limit <count>', 'queue at most this many (e.g. 1 to try it out first)', (value) => {
+    const count = Number(value);
+    if (!Number.isInteger(count) || count < 1) throw new Error('--limit must be a positive whole number');
+    return count;
+  })
+  .action(async (options: { dryRun?: boolean; limit?: number }) => {
     const config = env();
     if (!config.DATABASE_MIGRATE_URL) throw new Error('DATABASE_MIGRATE_URL is needed (all users)');
     const owner = createDb(config.DATABASE_MIGRATE_URL);
@@ -262,13 +267,14 @@ program
       const redis = createRedis(config.REDIS_URL);
       const jobs = createJobs(redis);
       try {
-        for (const video of videos)
+        const queued = videos.slice(0, options.limit ?? videos.length);
+        for (const video of queued)
           await jobs.transcode(
             { userId: video.user_id, assetId: video.id },
             { priority: video.local ? 1 : 2 },
           );
         console.log(
-          `Queued ${videos.length.toLocaleString()}. The worker makes one at a time, at low priority.`,
+          `Queued ${queued.length.toLocaleString()}. The worker makes one at a time, at low priority.`,
         );
       } finally {
         await jobs.close();
