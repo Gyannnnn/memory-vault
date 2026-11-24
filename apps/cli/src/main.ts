@@ -133,7 +133,7 @@ program
 program
   .command('upload')
   .description('Upload scanned sources: resumable, checksum-verified, deduplicated')
-  .argument('<sources...>', 'source ids, e.g. laptop:s21fe phone:s21fe')
+  .argument('[sources...]', 'source ids, e.g. laptop:s21fe phone:s21fe')
   .option('--retry-failed', 'retry files that failed in an earlier run')
   .option('--no-rescan', 'skip re-scanning local sources before uploading')
   .option('--keep-staging', 'keep copies pulled from the phone after they upload')
@@ -150,6 +150,15 @@ program
         files: number;
       },
     ) => {
+      if (sources.length === 0) {
+        const manifest = openManifest();
+        const known = manifest.listSources().map((source) => source.id);
+        manifest.close();
+        throw new Error(
+          `say which sources to upload, e.g. \`pnpm vault upload ${known[0] ?? 'laptop:s21fe'}\`` +
+            (known.length ? ` (scanned: ${known.join(', ')})` : ''),
+        );
+      }
       const ids = sources.map(parseSourceId);
       const api = apiClient();
       await api.me();
