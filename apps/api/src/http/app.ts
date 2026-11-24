@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { authRoutes } from '../auth/routes';
 import type { AppContext } from '../context';
+import { downloadRoutes } from '../downloads/routes';
 import { libraryRoutes } from '../library/routes';
 import { uploadRoutes } from '../uploads/routes';
 import { authOf, requireAuth } from './auth-middleware';
@@ -34,6 +35,7 @@ export function createApp(ctx: AppContext): Express {
     });
   });
   app.use('/v1/uploads', signedIn, uploadRoutes(ctx));
+  app.use('/v1/downloads', signedIn, downloadRoutes(ctx));
   app.use('/v1', signedIn, libraryRoutes(ctx));
 
   app.use((_request, _response, next) => next(notFound()));
