@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
   ExternalLink,
   FileText,
   Info,
@@ -24,6 +25,7 @@ import { formatWallTime } from '@/lib/format';
 import { libraryQueries } from '@/lib/library';
 import { cn } from '@/lib/utils';
 import { InfoPanel } from './info-panel';
+import { VideoPlayer } from './video-player';
 import { ZoomStage, type ZoomControls } from './zoom-stage';
 
 const BROWSER_IMAGES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
@@ -151,30 +153,10 @@ function Media({
   onNaturalSize?: (width: number, height: number) => void;
 }) {
   const [largeLoaded, setLargeLoaded] = useState(false);
-  const [videoFailed, setVideoFailed] = useState(false);
 
   if (tile.kind === 'video') {
     if (!detail) return <Loader2 className="size-6 animate-spin text-ink-muted" aria-label="Loading" />;
-    return videoFailed ? (
-      <div className="max-w-sm px-6 text-center">
-        <p className="font-medium">This video can’t play in the browser yet</p>
-        <p className="mt-1 text-sm text-ink-muted">
-          Its format isn’t supported here. Streaming versions that play everywhere come in the next milestone.
-        </p>
-        <OpenOriginal href={detail.originalUrl} />
-      </div>
-    ) : (
-      <video
-        key={detail.id}
-        src={detail.originalUrl}
-        poster={detail.preview?.lg ?? tile.thumb?.md}
-        controls
-        autoPlay
-        playsInline
-        onError={() => setVideoFailed(true)}
-        className="size-full bg-background object-contain"
-      />
-    );
+    return <VideoPlayer key={detail.id} detail={detail} poster={detail.preview?.lg ?? tile.thumb?.md} />;
   }
 
   const preview = tile.thumb?.md;
@@ -271,7 +253,8 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.target instanceof HTMLVideoElement && ['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      // Inside the video player its own shortcuts apply (arrows seek, i is picture-in-picture).
+      if (event.target instanceof Element && event.target.closest('[data-media-player]')) return;
       if (event.key === 'ArrowLeft') go(previous);
       else if (event.key === 'ArrowRight') go(next);
       else if (event.key === 'i') toggleInfo();
@@ -343,6 +326,18 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                     <Plus />
                   </ToolbarButton>
                 </>
+              )}
+              {detail.data && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-lg" asChild>
+                      <a href={detail.data.downloadUrl} aria-label="Download the original">
+                        <Download />
+                      </a>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Download the original</TooltipContent>
+                </Tooltip>
               )}
               <ToolbarButton label="Details (i)" onClick={toggleInfo} pressed={infoOpen}>
                 <Info />

@@ -26,3 +26,11 @@
 
 /* `dark:` utilities follow the chosen theme (next-themes sets data-theme), not only the OS setting. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* The video player (Vidstack) in the app's own colours, type and focus ring. */
+.vault-player {
+  --media-brand: var(--color-ink);
+  --media-font-family: var(--font-sans);
+  --media-focus-ring: 0 0 0 3px var(--color-focus);
+  --video-border-radius: var(--radius-md);
+}
