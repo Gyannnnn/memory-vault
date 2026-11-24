@@ -253,6 +253,8 @@ model Derivative {
   width     Int
   height    Int
   sizeBytes Int      @map("size_bytes")
+  /// Variant-specific facts, e.g. a video rendition's HLS playlist, bandwidth and codecs.
+  details   Json?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

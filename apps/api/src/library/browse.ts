@@ -55,6 +55,15 @@ export function decodeCursor(cursor: string): { localAt: string; id: string } | 
 }
 
 /** "kora 2025" → "kora:* & 2025:*": every word must match the start of a word. */
+/** Short sides of a video's HLS renditions, from its derivative variants ("hls-720"). */
+export function streamQualities(variants: Iterable<string>): { qualities: number[] } | null {
+  const qualities = [...variants]
+    .filter((variant) => /^hls-\d+$/.test(variant))
+    .map((variant) => Number(variant.slice(4)))
+    .sort((a, b) => a - b);
+  return qualities.length > 0 ? { qualities } : null;
+}
+
 export function prefixQuery(text: string): string | null {
   const words = text
     .toLowerCase()
@@ -306,6 +315,8 @@ export class BrowseService {
               }
             : null,
         originalUrl: await this.urls.original(asset),
+        downloadUrl: await this.urls.original(asset, 'attachment'),
+        stream: streamQualities(variants),
         processing: { done: asset.processedAt !== null, error: asset.processingError },
       };
     });

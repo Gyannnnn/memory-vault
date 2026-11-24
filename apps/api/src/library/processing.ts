@@ -1,5 +1,6 @@
 import type {
   MediaKind,
+  PendingWork,
   pendingOriginalsQuery,
   PendingOriginalsResponse,
   ProcessingStatusResponse,
@@ -21,6 +22,15 @@ interface PendingRow {
   paths: string[];
 }
 
+const HAS_STREAM = Prisma.sql`EXISTS (SELECT 1 FROM derivatives d WHERE d.asset_id = a.id AND d.variant LIKE 'hls-%')`;
+
+/** Files still waiting for that work. */
+function waiting(work: PendingWork): Prisma.Sql {
+  return work === 'streams'
+    ? Prisma.sql`a.kind = 'video' AND a.processed_at IS NOT NULL AND NOT ${HAS_STREAM}`
+    : Prisma.sql`a.processed_at IS NULL`;
+}
+
 /**
  * What the worker still has to process, so an uploader that can still reach the files
  * (a phone over USB, for example) can put local copies where the waiting jobs look for
@@ -33,7 +43,7 @@ export class ProcessingService {
   pending(userId: string, query: PendingInput): Promise<PendingOriginalsResponse> {
     const cursor = query.cursor ? decodeCursor(query.cursor) : null;
     if (query.cursor && !cursor) throw new HttpError(400, 'invalid_cursor', 'The cursor is not valid');
-    const where = Prisma.sql`${visible(userId)} AND a.processed_at IS NULL`;
+    const where = Prisma.sql`${visible(userId)} AND ${waiting(query.for)}`;
     return withUser(this.ctx.db, userId, async (tx) => {
       const rows = await tx.$queryRaw<PendingRow[]>`
         SELECT a.id, a.kind::text AS kind, a.size_bytes, a.sha256,
@@ -72,11 +82,13 @@ export class ProcessingService {
     });
   }
 
-  /** Whether each of the caller's files has been processed. Unknown or other users' ids are left out. */
-  status(userId: string, ids: string[]): Promise<ProcessingStatusResponse> {
+  /** Whether each of the caller's files is done. Unknown or other users' ids are left out. */
+  status(userId: string, ids: string[], work: PendingWork = 'processing'): Promise<ProcessingStatusResponse> {
     return withUser(this.ctx.db, userId, async (tx) => {
       const rows = await tx.$queryRaw<{ id: string; done: boolean; error: string | null }[]>`
-        SELECT a.id, a.processed_at IS NOT NULL AS done, a.processing_error AS error
+        SELECT a.id,
+               ${work === 'streams' ? HAS_STREAM : Prisma.sql`a.processed_at IS NOT NULL`} AS done,
+               ${work === 'streams' ? Prisma.sql`NULL::text` : Prisma.sql`a.processing_error`} AS error
         FROM assets a
         WHERE a.user_id = ${userId}::uuid AND a.id = ANY(${ids}::uuid[])`;
       return { items: rows };

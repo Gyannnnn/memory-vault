@@ -1,11 +1,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { InvalidArgumentError, type Command } from 'commander';
+import { InvalidArgumentError, Option, type Command } from 'commander';
 import {
   formatBytes,
   formatCount,
   formatDuration,
   sourceIdSchema,
+  type PendingWork,
   type SourceId,
 } from '@memory-vault/shared';
 import { config, manifestPath } from '../config';
@@ -427,8 +428,17 @@ export function registerPhoneCommands(program: Command): void {
     .requiredOption('-s, --source <id>', 'source id, e.g. phone:s21fe', parseSourceId)
     .option('--serial <serial>', 'device serial when several are connected')
     .option('--window-gb <gb>', 'most GB of copies waiting for the worker at once', parseWindowGb, 4)
-    .action((options: { source: SourceId; serial?: string; windowGb: number }) =>
-      stagePending(options.source, { serial: options.serial, windowBytes: options.windowGb * 1024 ** 3 }),
+    .addOption(
+      new Option('--for <work>', 'what the files wait for: first processing, or streaming versions of videos')
+        .choices(['processing', 'streams'])
+        .default('processing'),
+    )
+    .action((options: { source: SourceId; serial?: string; windowGb: number; for: PendingWork }) =>
+      stagePending(options.source, {
+        serial: options.serial,
+        windowBytes: options.windowGb * 1024 ** 3,
+        work: options.for,
+      }),
     );
 }
 

@@ -44,12 +44,23 @@ export class MediaUrlSigner {
     return { sm, md };
   }
 
-  /** The original, shown in the browser where it can be (video, JPEG) under its original name. */
-  original(asset: { s3Key: string; mimeType: string; originalName: string }): Promise<string> {
+  /**
+   * The original under its original name: `inline` shows it in the browser where it can be
+   * (video, JPEG); `attachment` saves it.
+   */
+  original(
+    asset: { s3Key: string; mimeType: string; originalName: string },
+    disposition: 'inline' | 'attachment' = 'inline',
+  ): Promise<string> {
     const ascii = asset.originalName.replace(/[^\x20-\x7e]|["\\]/g, '_');
     return this.sign(asset.s3Key, {
       'response-content-type': asset.mimeType,
-      'response-content-disposition': `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(asset.originalName)}`,
+      'response-content-disposition': `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(asset.originalName)}`,
     });
+  }
+
+  /** Any object the app wrote for a user (e.g. a video rendition the HLS player reads by range). */
+  object(key: string): Promise<string> {
+    return this.sign(key);
   }
 }

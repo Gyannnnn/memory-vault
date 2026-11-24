@@ -149,3 +149,94 @@ export async function rawPreview(input: string, workDirectory: string): Promise<
   if (!existsSync(developed)) throw new Error('could not decode RAW file');
   return developed;
 }
+
+export interface StreamProbe {
+  /** Display size, after rotation. */
+  width: number;
+  height: number;
+  durationMs: number;
+  frameRate: number;
+  hasAudio: boolean;
+  /** PQ (HDR10) or HLG: needs tone mapping to look right on ordinary screens. */
+  hdr: boolean;
+}
+
+interface FfprobeStream {
+  codec_type?: string;
+  width?: number;
+  height?: number;
+  avg_frame_rate?: string;
+  r_frame_rate?: string;
+  color_transfer?: string;
+  profile?: string;
+  level?: number;
+  side_data_list?: { rotation?: number }[];
+  tags?: { rotate?: string };
+}
+
+const rate = (value: string | undefined) => {
+  const [numerator, denominator] = (value ?? '').split('/').map(Number);
+  return numerator && denominator ? numerator / denominator : 0;
+};
+
+/** What the transcoder needs to know about a video. */
+export function parseStreamProbe(json: string): StreamProbe {
+  const probe = JSON.parse(json) as { format?: { duration?: string }; streams?: FfprobeStream[] };
+  const video = probe.streams?.find((stream) => stream.codec_type === 'video');
+  if (!video?.width || !video.height) throw new Error('no video stream');
+  const rotation = Math.abs(
+    Number(
+      video.side_data_list?.find((data) => data.rotation !== undefined)?.rotation ?? video.tags?.rotate ?? 0,
+    ),
+  );
+  const sideways = rotation === 90 || rotation === 270;
+  const duration = Number(probe.format?.duration);
+  const frameRate = rate(video.avg_frame_rate) || rate(video.r_frame_rate) || 30;
+  return {
+    width: sideways ? video.height : video.width,
+    height: sideways ? video.width : video.height,
+    durationMs: Number.isFinite(duration) ? Math.round(duration * 1000) : 0,
+    frameRate: Math.min(240, frameRate),
+    hasAudio: Boolean(probe.streams?.some((stream) => stream.codec_type === 'audio')),
+    hdr: ['smpte2084', 'arib-std-b67'].includes(video.color_transfer ?? ''),
+  };
+}
+
+export async function probeForStreaming(input: string): Promise<StreamProbe> {
+  const { stdout } = await run(
+    'ffprobe',
+    ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', input],
+    { timeout: TOOL_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+  );
+  return parseStreamProbe(stdout);
+}
+
+/** RFC 6381 codec string of an encoded H.264 + AAC file, for the HLS master playlist. */
+export async function streamCodecs(file: string): Promise<string> {
+  const { stdout } = await run('ffprobe', ['-v', 'error', '-print_format', 'json', '-show_streams', file], {
+    timeout: TOOL_TIMEOUT_MS,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  return codecString(JSON.parse(stdout) as { streams?: FfprobeStream[] });
+}
+
+export function codecString(probe: { streams?: FfprobeStream[] }): string {
+  const video = probe.streams?.find((stream) => stream.codec_type === 'video');
+  const profiles: Record<string, string> = {
+    High: '6400',
+    Main: '4d40',
+    'Constrained Baseline': '42e0',
+    Baseline: '4200',
+  };
+  const level = Math.max(10, Math.min(62, video?.level ?? 40));
+  const codecs = [
+    `avc1.${profiles[video?.profile ?? 'High'] ?? '6400'}${level.toString(16).padStart(2, '0')}`,
+  ];
+  if (probe.streams?.some((stream) => stream.codec_type === 'audio')) codecs.push('mp4a.40.2');
+  return codecs.join(',');
+}
+
+/** Runs a long tool at low CPU priority, so the computer stays usable while it works. */
+export async function runNiced(tool: string, args: string[], timeoutMs: number): Promise<void> {
+  await run('nice', ['-n', '10', tool, ...args], { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 });
+}

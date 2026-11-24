@@ -8,13 +8,19 @@ import { sha256HexSchema } from './uploads';
  * place local copies where the waiting jobs look for them, so the worker doesn't have
  * to download the originals from S3.
  */
+/** What the files are waiting for: first processing (previews, details), or streaming versions of videos. */
+export const pendingWorkSchema = z.enum(['processing', 'streams']);
+export type PendingWork = z.infer<typeof pendingWorkSchema>;
+
 export const pendingOriginalsQuery = z.object({
   source: sourceIdSchema,
+  for: pendingWorkSchema.default('processing'),
   cursor: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(2000).default(1000),
 });
 export interface PendingOriginalsQuery {
   source: string;
+  for?: PendingWork;
   cursor?: string;
   limit?: number;
 }
@@ -40,7 +46,10 @@ export const pendingOriginalsResponse = z.object({
 });
 export type PendingOriginalsResponse = z.infer<typeof pendingOriginalsResponse>;
 
-export const processingStatusRequest = z.object({ ids: z.array(z.uuid()).min(1).max(1000) });
+export const processingStatusRequest = z.object({
+  ids: z.array(z.uuid()).min(1).max(1000),
+  for: pendingWorkSchema.default('processing'),
+});
 
 export const processingStatusResponse = z.object({
   items: z.array(

@@ -1,5 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { CreateBucketCommand, PutBucketVersioningCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  CreateBucketCommand,
+  PutBucketCorsCommand,
+  PutBucketVersioningCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { testEnv } from './test-env';
 
 export default async function setup(): Promise<void> {
@@ -26,6 +31,24 @@ export default async function setup(): Promise<void> {
   }
   await s3.send(
     new PutBucketVersioningCommand({ Bucket: env.S3_BUCKET, VersioningConfiguration: { Status: 'Enabled' } }),
+  );
+  // The same browser rule as the real bucket (docs/setup/phase-0-aws-setup.md), plus the
+  // port a second, throwaway web server uses: the player and uploads talk to S3 directly.
+  await s3.send(
+    new PutBucketCorsCommand({
+      Bucket: env.S3_BUCKET,
+      CORSConfiguration: {
+        CORSRules: [
+          {
+            AllowedMethods: ['GET', 'HEAD', 'PUT'],
+            AllowedOrigins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001'],
+            AllowedHeaders: ['*'],
+            ExposeHeaders: ['ETag', 'x-amz-checksum-sha256', 'x-amz-version-id'],
+            MaxAgeSeconds: 3600,
+          },
+        ],
+      },
+    }),
   );
   s3.destroy();
 }

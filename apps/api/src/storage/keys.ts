@@ -24,6 +24,13 @@ export function thumbKey(userId: string, sha256: string, variant: string): strin
   return `users/${userId}/thumbs/${sha256}/${variant}.webp`;
 }
 
+/** One HLS rendition of a video: a single fragmented MP4 that the playlist addresses by byte range. */
+export function streamKey(userId: string, sha256: string, height: number): string {
+  assertParts(userId, sha256);
+  if (!Number.isInteger(height) || height < 16 || height > 4320) throw new Error('invalid stream height');
+  return `users/${userId}/streams/${sha256}/${height}p.mp4`;
+}
+
 /** Parses keys written by the app or dropped into a user's inbox. Anything else returns null. */
 export function parseKey(
   key: string,

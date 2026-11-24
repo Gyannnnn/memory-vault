@@ -7,18 +7,28 @@ export interface IngestJob {
   localPath?: string;
 }
 
+export interface TranscodeJob {
+  userId: string;
+  assetId: string;
+  localPath?: string;
+}
+
 export interface Jobs {
   ingest(job: IngestJob): Promise<void>;
+  /** Streaming versions of a video. `priority`: lower runs first (1 = has a local copy). */
+  transcode(job: TranscodeJob, options?: { priority?: number }): Promise<void>;
   close(): Promise<void>;
 }
 
 export const QUEUE = {
   ingest: 'ingest',
+  transcode: 'transcode',
   maintenance: 'maintenance',
 } as const;
 
 export function createJobs(connection: Redis): Jobs {
   const ingest = new Queue<IngestJob>(QUEUE.ingest, { connection });
+  const transcode = new Queue<TranscodeJob>(QUEUE.transcode, { connection });
   return {
     async ingest(job) {
       await ingest.add('ingest', job, {
@@ -29,8 +39,18 @@ export function createJobs(connection: Redis): Jobs {
         removeOnFail: false,
       });
     },
+    async transcode(job, options = {}) {
+      await transcode.add('transcode', job, {
+        jobId: `transcode-${job.assetId}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 60_000 },
+        removeOnComplete: 1000,
+        removeOnFail: false,
+        ...(options.priority ? { priority: options.priority } : {}),
+      });
+    },
     async close() {
-      await ingest.close();
+      await Promise.all([ingest.close(), transcode.close()]);
     },
   };
 }

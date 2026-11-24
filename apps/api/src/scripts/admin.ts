@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import qrcode from 'qrcode-terminal';
 import { emailSchema, passwordSchema } from '@memory-vault/shared';
 import { AuthService } from '../auth/service';
-import { closeContext, createContext } from '../context';
+import { closeContext, createContext, createRedis } from '../context';
 import { createDb } from '../db';
 import { env } from '../env';
 import { geocodeAllAssets, parsePlaces, readGeonames, savePlaces } from '../places/geonames';
@@ -222,6 +222,58 @@ program
       console.log(
         `${placed.toLocaleString()} of ${withGps.toLocaleString()} files with GPS have a place name.`,
       );
+    } finally {
+      await owner.$disconnect();
+    }
+  });
+
+program
+  .command('transcode-backfill')
+  .description('Queue streaming versions for every video that has none (laptop copies first, newest first)')
+  .option('--dry-run', 'only count what would be queued')
+  .action(async (options: { dryRun?: boolean }) => {
+    const config = env();
+    if (!config.DATABASE_MIGRATE_URL) throw new Error('DATABASE_MIGRATE_URL is needed (all users)');
+    const owner = createDb(config.DATABASE_MIGRATE_URL);
+    try {
+      const videos = await owner.$queryRaw<
+        { id: string; user_id: string; size_bytes: bigint; duration_ms: number | null; local: boolean }[]
+      >`
+        SELECT a.id, a.user_id, a.size_bytes, a.duration_ms,
+               EXISTS (SELECT 1 FROM asset_origins o WHERE o.asset_id = a.id AND o.source_id LIKE 'laptop:%') AS local
+        FROM assets a
+        WHERE a.kind = 'video' AND a.status = 'verified' AND a.deleted_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM derivatives d WHERE d.asset_id = a.id AND d.variant LIKE 'hls-%')
+        ORDER BY local DESC, a.local_at DESC, a.id DESC`;
+      const local = videos.filter((video) => video.local);
+      const hours = videos.reduce((sum, video) => sum + (video.duration_ms ?? 0), 0) / 3_600_000;
+      const gigabytes = (rows: typeof videos) =>
+        (rows.reduce((sum, video) => sum + Number(video.size_bytes), 0) / 1024 ** 3).toFixed(1);
+      console.log(
+        `${videos.length.toLocaleString()} videos without streaming versions (${hours.toFixed(1)} hours of video):`,
+      );
+      console.log(
+        `  ${local.length.toLocaleString()} with a laptop copy (${gigabytes(local)} GB, read locally)`,
+      );
+      console.log(
+        `  ${(videos.length - local.length).toLocaleString()} without (${gigabytes(videos.filter((video) => !video.local))} GB, downloaded from S3 unless staged with \`vault phone stage-pending --for streams\`)`,
+      );
+      if (options.dryRun || videos.length === 0) return;
+      const redis = createRedis(config.REDIS_URL);
+      const jobs = createJobs(redis);
+      try {
+        for (const video of videos)
+          await jobs.transcode(
+            { userId: video.user_id, assetId: video.id },
+            { priority: video.local ? 1 : 2 },
+          );
+        console.log(
+          `Queued ${videos.length.toLocaleString()}. The worker makes one at a time, at low priority.`,
+        );
+      } finally {
+        await jobs.close();
+        redis.disconnect();
+      }
     } finally {
       await owner.$disconnect();
     }

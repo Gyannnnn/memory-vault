@@ -11,10 +11,11 @@ import {
 } from '@memory-vault/shared';
 import type { AppContext } from '../context';
 import { authOf } from '../http/auth-middleware';
-import { parse } from '../http/errors';
+import { notFound, parse } from '../http/errors';
 import { UploadService } from '../uploads/service';
 import { BrowseService } from './browse';
 import { ProcessingService } from './processing';
+import { PLAYLIST_TYPE, StreamService } from './streams';
 
 const folderQuery = z.object({
   cursor: z.string().max(300).optional(),
@@ -26,6 +27,7 @@ export function libraryRoutes(ctx: AppContext): Router {
   const uploads = new UploadService(ctx);
   const browse = new BrowseService(ctx);
   const processing = new ProcessingService(ctx);
+  const streams = new StreamService(ctx);
 
   router.post('/assets/origins', async (request, response) => {
     const { items } = parse(recordOriginsRequest, request.body);
@@ -39,6 +41,20 @@ export function libraryRoutes(ctx: AppContext): Router {
 
   router.get('/assets', async (request, response) => {
     response.json(await browse.search(authOf(request).userId, parse(assetSearchQuery, request.query)));
+  });
+
+  // HLS: the master playlist, then one playlist per rendition (relative to the master).
+  router.get('/assets/:id/stream.m3u8', async (request, response) => {
+    const playlist = await streams.master(authOf(request).userId, parse(z.uuid(), request.params.id));
+    if (!playlist) throw notFound('No streaming version yet');
+    response.type(PLAYLIST_TYPE).set('cache-control', 'private, max-age=300').send(playlist);
+  });
+
+  router.get('/assets/:id/stream/:quality.m3u8', async (request, response) => {
+    const quality = parse(z.coerce.number().int().min(16).max(4320), request.params.quality);
+    const playlist = await streams.media(authOf(request).userId, parse(z.uuid(), request.params.id), quality);
+    if (!playlist) throw notFound('No such streaming version');
+    response.type(PLAYLIST_TYPE).set('cache-control', 'private, max-age=300').send(playlist);
   });
 
   router.get('/assets/:id', async (request, response) => {
@@ -80,8 +96,8 @@ export function libraryRoutes(ctx: AppContext): Router {
   });
 
   router.post('/processing/status', async (request, response) => {
-    const { ids } = parse(processingStatusRequest, request.body);
-    response.json(await processing.status(authOf(request).userId, ids));
+    const body = parse(processingStatusRequest, request.body);
+    response.json(await processing.status(authOf(request).userId, body.ids, body.for));
   });
 
   return router;

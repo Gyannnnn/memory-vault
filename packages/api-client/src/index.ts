@@ -14,6 +14,7 @@ import {
   type CreateUploadRequest,
   type Origin,
   type PendingOriginalsQuery,
+  type PendingWork,
   type TokenResponse,
   type UploadedPart,
 } from '@memory-vault/shared';
@@ -214,13 +215,13 @@ export function createApiClient(options: ApiClientOptions) {
 
     /** Files from `source` the worker hasn't processed yet, newest first. */
     pendingOriginals(query: PendingOriginalsQuery) {
-      const params = new URLSearchParams({ source: query.source });
+      const params = new URLSearchParams({ source: query.source, for: query.for ?? 'processing' });
       if (query.cursor) params.set('cursor', query.cursor);
       if (query.limit) params.set('limit', String(query.limit));
       return authed('GET', `/v1/processing/pending?${params.toString()}`, pendingOriginalsResponse);
     },
-    processingStatus(ids: string[]) {
-      return authed('POST', '/v1/processing/status', processingStatusResponse, { ids });
+    processingStatus(ids: string[], work: PendingWork = 'processing') {
+      return authed('POST', '/v1/processing/status', processingStatusResponse, { ids, for: work });
     },
   };
 }

@@ -1,10 +1,8 @@
 import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
 import { perceptualHash } from '@memory-vault/media';
 import type { AppContext } from '../context';
@@ -21,7 +19,8 @@ import {
   rawPreview,
   videoPoster,
 } from './media-tools';
-import type { IngestJob } from './queues';
+import { obtainOriginal } from './originals';
+import type { IngestJob, Jobs } from './queues';
 
 export const VARIANTS = [
   { variant: 'sm', size: 400, quality: 76 },
@@ -29,37 +28,7 @@ export const VARIANTS = [
   { variant: 'lg', size: 2048, quality: 82 },
 ] as const;
 
-type IngestContext = Pick<AppContext, 'db' | 's3' | 'env' | 'logger'>;
-
-/** Maps a path on the uploading machine to where the worker sees it (read-only mounts). */
-export function mapLocalPath(localPath: string, pathMap: string): string | null {
-  for (const pair of pathMap.split(';').filter(Boolean)) {
-    const [host, container] = pair.split('=');
-    if (!host || !container) continue;
-    if (localPath === host || localPath.startsWith(`${host}/`))
-      return `${container}${localPath.slice(host.length)}`;
-  }
-  return null;
-}
-
-async function sha256File(path: string): Promise<string> {
-  const hash = createHash('sha256');
-  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
-  return hash.digest('hex');
-}
-
-/** Uses the uploader's local copy when it's visible and identical; otherwise downloads the original from S3. */
-async function obtainOriginal(ctx: IngestContext, asset: Asset, job: IngestJob, workDirectory: string) {
-  const mapped = job.localPath ? mapLocalPath(job.localPath, ctx.env.LOCAL_PATH_MAP) : null;
-  for (const candidate of [mapped, job.localPath].filter((path): path is string => Boolean(path))) {
-    if (!existsSync(candidate) || statSync(candidate).size !== Number(asset.sizeBytes)) continue;
-    if ((await sha256File(candidate)) === asset.sha256) return { path: candidate, from: 'local' as const };
-  }
-  const target = join(workDirectory, `original.${asset.extension || 'bin'}`);
-  const object = await ctx.s3.send(new GetObjectCommand({ Bucket: ctx.env.S3_BUCKET, Key: asset.s3Key }));
-  await pipeline(object.Body as Readable, createWriteStream(target));
-  return { path: target, from: 's3' as const };
-}
+type IngestContext = Pick<AppContext, 'db' | 's3' | 'env' | 'logger'> & { jobs?: Pick<Jobs, 'transcode'> };
 
 /** Produces a file sharp can read for the asset, or null when there is nothing to show. */
 async function visualFor(asset: Asset, original: string, workDirectory: string, durationMs: number | null) {
@@ -77,7 +46,10 @@ async function visualFor(asset: Asset, original: string, workDirectory: string, 
 
 export async function processIngest(ctx: IngestContext, job: IngestJob): Promise<'processed' | 'skipped'> {
   const loaded = await withUser(ctx.db, job.userId, async (tx) => ({
-    asset: await tx.asset.findUnique({ where: { id: job.assetId }, include: { origins: { take: 1 } } }),
+    asset: await tx.asset.findUnique({
+      where: { id: job.assetId },
+      include: { origins: { select: { sourceId: true, originalPath: true } } },
+    }),
     user: await tx.user.findUniqueOrThrow({ where: { id: job.userId }, select: { timezone: true } }),
   }));
   const { asset, user } = loaded;
@@ -85,7 +57,15 @@ export async function processIngest(ctx: IngestContext, job: IngestJob): Promise
 
   const workDirectory = mkdtempSync(join(tmpdir(), 'vault-ingest-'));
   try {
-    const original = await obtainOriginal(ctx, asset, job, workDirectory);
+    const original = await obtainOriginal(
+      ctx,
+      asset,
+      {
+        localPath: job.localPath,
+        origins: asset.origins.map((origin) => ({ sourceId: origin.sourceId, path: origin.originalPath })),
+      },
+      workDirectory,
+    );
     const tags = await exiftool.read(original.path);
     const metadata = normalizeMetadata(tags, {
       fileName: asset.originalName,
@@ -199,6 +179,13 @@ export async function processIngest(ctx: IngestContext, job: IngestJob): Promise
           ELSE nearest_place(gps_latitude, gps_longitude) END
         WHERE id = ${asset.id}::uuid`;
     });
+    if (asset.kind === 'video') {
+      // Streaming versions next; a local copy makes that much quicker, so those go first.
+      await ctx.jobs?.transcode(
+        { userId: job.userId, assetId: asset.id, ...(job.localPath ? { localPath: job.localPath } : {}) },
+        { priority: original.from === 'local' ? 1 : 2 },
+      );
+    }
     return 'processed';
   } catch (error) {
     await withUser(ctx.db, job.userId, (tx) =>

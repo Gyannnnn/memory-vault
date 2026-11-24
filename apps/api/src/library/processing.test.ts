@@ -185,3 +185,49 @@ describe('POST /v1/processing/status', () => {
     ).toBe(400);
   });
 });
+
+describe('waiting for streaming versions', () => {
+  it('lists processed videos without streams, and reports done once they have one', async () => {
+    const video = await seed(alice, {
+      kind: 'video',
+      origins: [{ sourceId: 'phone:s21fe', path: 'DCIM/Camera/clip.mp4' }],
+      modifiedAt: '2026-03-01T10:00:00Z',
+      processed: true,
+    });
+    const listed = (await pending(alice, 'source=phone:s21fe&for=streams')).body as PendingOriginalsResponse;
+    // Only processed videos: the unprocessed one (oldest) waits for processing first.
+    expect(listed.items.map((item) => item.assetId)).toEqual([video.id]);
+    const before = await api()
+      .post('/v1/processing/status')
+      .set(bearer(alice.accessToken))
+      .send({ ids: [video.id], for: 'streams' });
+    expect((before.body as ProcessingStatusResponse).items).toEqual([
+      { id: video.id, done: false, error: null },
+    ]);
+
+    await withUser(harness.ctx.db, alice.userId, (tx) =>
+      tx.derivative.create({
+        data: {
+          id: newId(),
+          userId: alice.userId,
+          assetId: video.id,
+          variant: 'hls-360',
+          s3Key: `users/${alice.userId}/streams/${video.sha256}/360p.mp4`,
+          mimeType: 'video/mp4',
+          width: 640,
+          height: 360,
+          sizeBytes: 1,
+        },
+      }),
+    );
+    const after = await api()
+      .post('/v1/processing/status')
+      .set(bearer(alice.accessToken))
+      .send({ ids: [video.id], for: 'streams' });
+    expect((after.body as ProcessingStatusResponse).items[0]!.done).toBe(true);
+    const relisted = (await pending(alice, 'source=phone:s21fe&for=streams'))
+      .body as PendingOriginalsResponse;
+    expect(relisted.items).toHaveLength(0);
+    expect((await pending(alice, 'source=phone:s21fe&for=everything')).status).toBe(400);
+  });
+});

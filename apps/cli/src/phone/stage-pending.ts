@@ -19,6 +19,7 @@ import {
   formatCount,
   formatDuration,
   type PendingOriginal,
+  type PendingWork,
   type SourceId,
 } from '@memory-vault/shared';
 import { apiClient } from '../auth/credentials';
@@ -174,8 +175,9 @@ function filesUnder(folder: string): number {
  */
 export async function stagePending(
   sourceId: SourceId,
-  options: { serial?: string; windowBytes: number },
+  options: { serial?: string; windowBytes: number; work?: PendingWork },
 ): Promise<void> {
+  const work = options.work ?? 'processing';
   const manifest = new Manifest(manifestPath());
   const source = (() => {
     try {
@@ -199,7 +201,7 @@ export async function stagePending(
   let totalBytes = 0;
   let cursor: string | undefined;
   do {
-    const page = await api.pendingOriginals({ source: sourceId, cursor, limit: 2000 });
+    const page = await api.pendingOriginals({ source: sourceId, for: work, cursor, limit: 2000 });
     if (page.total !== null) total = page.total;
     if (page.totalBytes !== null) totalBytes = page.totalBytes;
     items.push(...page.items);
@@ -208,7 +210,12 @@ export async function stagePending(
 
   const queue = stagingOrder(items);
   mkdirSync(root, { recursive: true });
-  const ledger = new Ledger(join(config.dataDir, `stage-pending-${sourceId.replace(':', '-')}.json`));
+  const ledger = new Ledger(
+    join(
+      config.dataDir,
+      `stage-pending-${sourceId.replace(':', '-')}${work === 'processing' ? '' : `-${work}`}.json`,
+    ),
+  );
   const waiting = new Set(items.map((item) => item.assetId));
   let cleanedEarlier = 0;
   for (const [file, assetId] of ledger.files) {
@@ -223,12 +230,12 @@ export async function stagePending(
   ledger.save();
   if (items.length === 0) {
     console.log(
-      `Nothing to do: every file from ${sourceId} has been processed.${cleanedEarlier ? ` Removed ${formatCount(cleanedEarlier)} copies left by an earlier run.` : ''}`,
+      `Nothing to do: ${work === 'streams' ? 'every video' : 'every file'} from ${sourceId} is done.${cleanedEarlier ? ` Removed ${formatCount(cleanedEarlier)} copies left by an earlier run.` : ''}`,
     );
     return;
   }
   console.log(
-    `${device.model ?? 'Phone'} (${device.serial}) · ${formatCount(total)} files waiting for the worker (${formatBytes(totalBytes)})`,
+    `${device.model ?? 'Phone'} (${device.serial}) · ${formatCount(total)} ${work === 'streams' ? 'videos waiting for streaming versions' : 'files waiting for the worker'} (${formatBytes(totalBytes)})`,
   );
   console.log(`Copies go to ${root} and are deleted once each file is processed. The phone is only read.\n`);
 
@@ -272,7 +279,7 @@ export async function stagePending(
     const ids = [...staged.keys(), ...upcoming];
     const known = new Map<string, { done: boolean; error: string | null }>();
     for (let start = 0; start < ids.length; start += STATUS_BATCH) {
-      const { items: batch } = await api.processingStatus(ids.slice(start, start + STATUS_BATCH));
+      const { items: batch } = await api.processingStatus(ids.slice(start, start + STATUS_BATCH), work);
       for (const status of batch) known.set(status.id, status);
     }
     const now = Date.now();

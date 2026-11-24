@@ -6,14 +6,19 @@ import { closeContext, createContext, type AppContext } from '../src/context';
 import { createDb, type Db } from '../src/db';
 import { env, resetEnvForTests } from '../src/env';
 import { createApp } from '../src/http/app';
-import type { IngestJob, Jobs } from '../src/workers/queues';
+import type { IngestJob, Jobs, TranscodeJob } from '../src/workers/queues';
 
 export const PASSWORD = 'correct horse battery staple';
 
 export class FakeJobs implements Jobs {
   readonly ingested: IngestJob[] = [];
+  readonly transcoded: TranscodeJob[] = [];
   ingest(job: IngestJob): Promise<void> {
     this.ingested.push(job);
+    return Promise.resolve();
+  }
+  transcode(job: TranscodeJob): Promise<void> {
+    this.transcoded.push(job);
     return Promise.resolve();
   }
   close(): Promise<void> {

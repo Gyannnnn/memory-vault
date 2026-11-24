@@ -5,8 +5,9 @@ import { createSqsClient } from './storage/aws';
 import { processIngest } from './workers/ingest';
 import { runCatalogExport, runDatabaseBackup, runIntegrityCheck } from './workers/maintenance';
 import { exiftool } from './workers/media-tools';
-import { createJobs, QUEUE, type IngestJob } from './workers/queues';
+import { createJobs, QUEUE, type IngestJob, type TranscodeJob } from './workers/queues';
 import { consumeS3Events } from './workers/s3-events';
+import { processTranscode } from './workers/transcode';
 
 const config = env();
 const context = await createContext(config);
@@ -23,6 +24,22 @@ ingest.on('failed', (job, error) =>
   context.logger.error(
     { assetId: job?.data.assetId, attempts: job?.attemptsMade, err: error },
     'ingest failed',
+  ),
+);
+
+// ffmpeg uses every core already; one video at a time keeps the computer usable.
+const transcode = new Worker<TranscodeJob>(
+  QUEUE.transcode,
+  async (job) => processTranscode(context, job.data),
+  {
+    connection,
+    concurrency: Number(process.env.TRANSCODE_CONCURRENCY ?? 1),
+  },
+);
+transcode.on('failed', (job, error) =>
+  context.logger.error(
+    { assetId: job?.data.assetId, attempts: job?.attemptsMade, err: error },
+    'transcode failed',
   ),
 );
 
@@ -53,12 +70,18 @@ const events = config.SQS_S3_EVENTS_QUEUE_URL
   : Promise.resolve();
 context.logger.info(
   { s3Events: Boolean(config.SQS_S3_EVENTS_QUEUE_URL) },
-  'worker started: ingest, maintenance schedule, S3 events',
+  'worker started: ingest, transcode, maintenance schedule, S3 events',
 );
 
 const shutdown = async () => {
   stop.abort();
-  await Promise.allSettled([ingest.close(), maintenance.close(), schedule.close(), events]);
+  await Promise.allSettled([
+    ingest.close(),
+    transcode.close(),
+    maintenance.close(),
+    schedule.close(),
+    events,
+  ]);
   await exiftool.end();
   connection.disconnect();
   await closeContext(context);

@@ -141,6 +141,10 @@ export interface AssetDetail extends AssetTile {
   preview: { lg: string; md: string } | null;
   /** Presigned, shown inline; for video playback and opening the original. */
   originalUrl: string;
+  /** Presigned, saved under the original file name. */
+  downloadUrl: string;
+  /** Streaming versions (HLS) by their short side, e.g. [360, 720, 1080]; null until made. */
+  stream: { qualities: number[] } | null;
   processing: { done: boolean; error: string | null };
 }
 
