@@ -21,6 +21,7 @@ import {
   PHONE_ROOT,
   runAdb,
   type AdbDevice,
+  type PhoneFileStat,
 } from './adb';
 
 export const DEFAULT_EXCLUDED = ['Android/data', 'Android/obb'];
@@ -193,47 +194,74 @@ async function inventory(sourceId: SourceId, serial?: string): Promise<void> {
     manifest.registerSource({ id: sourceId, kind: 'phone', root: PHONE_ROOT, deviceSerial: device.serial });
     const scanId = manifest.startScan(sourceId);
     let batch: EntryUpsert[] = [];
-    let listed = 0;
-    let unparsed = 0;
     const flush = () => {
       manifest.upsertEntries(sourceId, scanId, batch);
       batch = [];
     };
-    const result = await runAdb(
-      { op: 'list-files', serial: device.serial, root: PHONE_ROOT },
-      {
-        onStdoutLine: (line) => {
-          if (!line) return;
-          const stat = parseStatLine(line);
-          if (!stat || !stat.path.startsWith(`${PHONE_ROOT}/`)) {
-            unparsed += 1;
-            batch.push({
-              path: `(unparsed ${unparsed}) ${line.slice(0, 200)}`,
-              entryType: 'error',
-              error: 'could not parse file listing line',
-            });
-            return;
-          }
-          const path = relativeToRoot(stat.path);
-          listed += 1;
-          batch.push({
-            path,
-            entryType: 'file',
-            size: stat.size,
-            mtimeMs: stat.mtimeSeconds * 1000,
-            mtimeNs: (BigInt(stat.mtimeSeconds) * 1_000_000_000n).toString(),
-            ...describeEntry(path),
-            defaultSelected: !isExcludedByDefault(path),
-          });
-          if (batch.length >= 1000) {
-            flush();
-            view.render([`Listing phone files… ${formatCount(listed)}`]);
-          }
-        },
-      },
+
+    // Two steps whose batch sizes we control: `find -exec … {} +` on the phone
+    // silently drops whole batches once they exceed its argument limit.
+    view.render(['Listing phone files…']);
+    const listing = await runAdb({ op: 'list-paths', serial: device.serial, root: PHONE_ROOT });
+    const lines = listing.stdout.split('\n').filter(Boolean);
+    const paths = lines.filter((line) => line.startsWith(`${PHONE_ROOT}/`));
+    const strayLines = lines.filter((line) => !line.startsWith(`${PHONE_ROOT}/`));
+
+    const stats = new Map<string, PhoneFileStat>();
+    const statErrors = new Map<string, string>();
+    for (let index = 0; index < paths.length;) {
+      const chunk: string[] = [];
+      let length = 0;
+      while (index < paths.length && chunk.length < 200 && length < 60_000) {
+        chunk.push(paths[index]!);
+        length += paths[index]!.length + 3;
+        index += 1;
+      }
+      const result = await runAdb({ op: 'stat', serial: device.serial, paths: chunk });
+      for (const line of result.stdout.split('\n')) {
+        const stat = parseStatLine(line);
+        if (stat) stats.set(stat.path, stat);
+      }
+      for (const line of result.stderr.split('\n').filter(Boolean)) {
+        const path = /'([^']+)'/.exec(line)?.[1];
+        if (path) statErrors.set(path, line.trim());
+      }
+      view.render([`Reading file details… ${formatCount(index)} / ${formatCount(paths.length)}`]);
+    }
+
+    for (const absolute of paths) {
+      const path = relativeToRoot(absolute);
+      const stat = stats.get(absolute);
+      batch.push(
+        stat
+          ? {
+              path,
+              entryType: 'file',
+              size: stat.size,
+              mtimeMs: stat.mtimeSeconds * 1000,
+              mtimeNs: (BigInt(stat.mtimeSeconds) * 1_000_000_000n).toString(),
+              ...describeEntry(path),
+              defaultSelected: !isExcludedByDefault(path),
+            }
+          : {
+              path,
+              entryType: 'file',
+              error: statErrors.get(absolute) ?? 'the phone listed this file but returned no details for it',
+              ...describeEntry(path),
+              defaultSelected: !isExcludedByDefault(path),
+            },
+      );
+      if (batch.length >= 1000) flush();
+    }
+    strayLines.forEach((line, index) =>
+      batch.push({
+        path: `(unparsed ${index + 1}) ${line.slice(0, 200)}`,
+        entryType: 'error',
+        error: 'a listing line that is not a path (a file name containing a line break?)',
+      }),
     );
-    for (const line of result.stderr.split('\n').filter(Boolean)) {
-      const match = /'([^']+)'[^']*$/.exec(line);
+    for (const line of listing.stderr.split('\n').filter(Boolean)) {
+      const match = /'([^']+)'[^']*$/.exec(line) ?? /^find: (\/[^:]+):/.exec(line);
       const path = match?.[1]?.startsWith(`${PHONE_ROOT}/`)
         ? relativeToRoot(match[1])
         : `(error) ${line.slice(0, 200)}`;
@@ -244,6 +272,8 @@ async function inventory(sourceId: SourceId, serial?: string): Promise<void> {
         defaultSelected: !isExcludedByDefault(path),
       });
     }
+    const listed = stats.size;
+    const unreadable = paths.length - listed;
     const special = await runAdb({ op: 'list-special', serial: device.serial, root: PHONE_ROOT });
     for (const line of special.stdout.split('\n').filter((entry) => entry.startsWith(`${PHONE_ROOT}/`))) {
       const path = relativeToRoot(line);
@@ -256,7 +286,10 @@ async function inventory(sourceId: SourceId, serial?: string): Promise<void> {
     }
     flush();
     manifest.finishScan(sourceId, scanId);
-    view.finish([`Listed ${formatCount(listed)} files on the phone.`]);
+    view.finish([
+      `Listed ${formatCount(paths.length)} files on the phone` +
+        (unreadable > 0 ? `; ${formatCount(unreadable)} could not be read and are listed as failed.` : '.'),
+    ]);
 
     const files = manifest.files(sourceId);
     console.log(['', ...renderFolderTable(folderSummary(files)), ''].join('\n'));

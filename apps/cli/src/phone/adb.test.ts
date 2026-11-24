@@ -7,7 +7,12 @@ describe('adb allowlist', () => {
       adbArgs({ op: 'devices' }),
       adbArgs({ op: 'getprop', serial: 'R1', property: 'ro.product.model' }),
       adbArgs({ op: 'df', serial: 'R1', path: '/storage/emulated/0' }),
-      adbArgs({ op: 'list-files', serial: 'R1', root: '/storage/emulated/0/DCIM' }),
+      adbArgs({ op: 'list-paths', serial: 'R1', root: '/storage/emulated/0/DCIM' }),
+      adbArgs({
+        op: 'stat',
+        serial: 'R1',
+        paths: ['/storage/emulated/0/a b.jpg', "/storage/emulated/0/it's.jpg"],
+      }),
       adbArgs({ op: 'list-special', serial: 'R1', root: '/storage/emulated/0' }),
       adbArgs({
         op: 'sha256',
@@ -29,6 +34,8 @@ describe('adb allowlist', () => {
     [['-s', 'R1', 'shell', 'mv /sdcard/a /sdcard/b']],
     [['-s', 'R1', 'shell', "find '/sdcard' -delete"]],
     [['-s', 'R1', 'shell', "find '/sdcard' -exec rm {} +"]],
+    [['-s', 'R1', 'shell', "find '/sdcard' -type f -exec stat {} +"]],
+    [['-s', 'R1', 'shell', "find '/sdcard' -fprint '/sdcard/out'"]],
     [['-s', 'R1', 'shell', "find '/sdcard'; rm -rf /sdcard"]],
     [['-s', 'R1', 'shell', "sha256sum -- '/sdcard/a' && touch /sdcard/b"]],
     [['-s', 'R1', 'shell', "sha256sum -- '/sdcard/a' > /sdcard/out"]],

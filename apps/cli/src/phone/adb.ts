@@ -10,7 +10,8 @@ export type AdbRequest =
   | { op: 'devices' }
   | { op: 'getprop'; serial: string; property: string }
   | { op: 'df'; serial: string; path: string }
-  | { op: 'list-files'; serial: string; root: string }
+  | { op: 'list-paths'; serial: string; root: string }
+  | { op: 'stat'; serial: string; paths: string[] }
   | { op: 'list-special'; serial: string; root: string }
   | { op: 'sha256'; serial: string; paths: string[] }
   | { op: 'pull'; serial: string; remote: string; local: string };
@@ -27,13 +28,10 @@ export function adbArgs(request: AdbRequest): string[] {
       return ['-s', request.serial, 'shell', `getprop ${request.property}`];
     case 'df':
       return ['-s', request.serial, 'shell', `df -k ${quote(request.path)}`];
-    case 'list-files':
-      return [
-        '-s',
-        request.serial,
-        'shell',
-        `find ${quote(request.root)} -type f -exec stat -c '%s|%Y|%n' {} +`,
-      ];
+    case 'list-paths':
+      return ['-s', request.serial, 'shell', `find ${quote(request.root)} -type f`];
+    case 'stat':
+      return ['-s', request.serial, 'shell', `stat -c '%s|%Y|%n' -- ${request.paths.map(quote).join(' ')}`];
     case 'list-special':
       return ['-s', request.serial, 'shell', `find ${quote(request.root)} ! -type f ! -type d`];
     case 'sha256':
@@ -43,9 +41,9 @@ export function adbArgs(request: AdbRequest): string[] {
   }
 }
 
-const allowedShellPrograms = ['getprop', 'df', 'find', 'sha256sum'];
+const allowedShellPrograms = ['getprop', 'df', 'find', 'stat', 'sha256sum'];
 const forbiddenWords =
-  /(^|[\s'"])(rm|rmdir|mv|cp|dd|chmod|chown|touch|mkdir|ln|truncate|setprop|pm|am|svc|reboot|input|content|cmd|settings|sh|su|tee|-delete|-exec(?!\s+stat\s))(?=[\s'"]|$)/;
+  /(^|[\s'"])(rm|rmdir|mv|cp|dd|chmod|chown|touch|mkdir|ln|truncate|setprop|pm|am|svc|reboot|input|content|cmd|settings|sh|su|tee|-delete|-exec|-execdir|-ok|-fprint)(?=[\s'"]|$)/;
 
 function stripQuoted(command: string): string {
   return command.replace(/'(?:[^']|'\\'')*'/g, "''");
