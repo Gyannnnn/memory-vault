@@ -285,6 +285,29 @@ program
     }
   });
 
+program
+  .command('motion-backfill')
+  .description('Queue the playable clip for every motion photo that has none')
+  .action(async () => {
+    const config = env();
+    if (!config.DATABASE_MIGRATE_URL) throw new Error('DATABASE_MIGRATE_URL is needed (all users)');
+    const owner = createDb(config.DATABASE_MIGRATE_URL);
+    const redis = createRedis(config.REDIS_URL);
+    const jobs = createJobs(redis);
+    try {
+      const photos = await owner.$queryRaw<{ id: string; user_id: string }[]>`
+        SELECT a.id, a.user_id FROM assets a
+        WHERE a.kind = 'photo' AND a.is_motion_photo AND a.status = 'verified' AND a.deleted_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM derivatives d WHERE d.asset_id = a.id AND d.variant = 'motion')`;
+      for (const photo of photos) await jobs.motion({ userId: photo.user_id, assetId: photo.id });
+      console.log(`Queued ${photos.length.toLocaleString()} motion photos (ahead of the video backlog).`);
+    } finally {
+      await jobs.close();
+      redis.disconnect();
+      await owner.$disconnect();
+    }
+  });
+
 program.parseAsync().catch((error: unknown) => {
   console.error(`\nError: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;

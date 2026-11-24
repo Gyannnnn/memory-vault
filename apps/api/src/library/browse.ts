@@ -14,6 +14,7 @@ import type { z } from 'zod';
 import type { AppContext } from '../context';
 import { Prisma, withUser, type Tx } from '../db';
 import { notFound } from '../http/errors';
+import { motionKey } from '../storage/keys';
 import { MediaUrlSigner } from './media-urls';
 
 type SearchInput = z.output<typeof assetSearchQuery>;
@@ -317,6 +318,7 @@ export class BrowseService {
         originalUrl: await this.urls.original(asset),
         downloadUrl: await this.urls.original(asset, 'attachment'),
         stream: streamQualities(variants),
+        motionUrl: variants.has('motion') ? await this.urls.object(motionKey(userId, asset.sha256)) : null,
         processing: { done: asset.processedAt !== null, error: asset.processingError },
       };
     });

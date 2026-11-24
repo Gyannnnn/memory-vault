@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AssetDetail } from '@memory-vault/shared';
 import { bearer, createHarness, signUp, type Harness, type SignedInUser } from '../../test/helpers';
 import { newId, withUser } from '../db';
-import { originalKey, streamKey } from '../storage/keys';
+import { motionKey, originalKey, streamKey } from '../storage/keys';
 import { putFile } from '../storage/put-file';
 import type { StreamDetails } from '../workers/transcode';
 import { recordOrigin } from './folders';
@@ -160,6 +160,54 @@ describe('HLS playlists', () => {
       `attachment; filename="Holi 2026.mp4"; filename*=UTF-8''Holi%202026.mp4`,
     );
     expect(((await get(alice, `/v1/assets/${noStream}`)).body as AssetDetail).stream).toBeNull();
+  });
+});
+
+describe('motion photos', () => {
+  it('give the viewer a link to their clip; other photos get none', async () => {
+    const made: Record<string, string> = {};
+    for (const withClip of [true, false]) {
+      const id = newId();
+      const sha256 = createHash('sha256').update(id).digest('hex');
+      await withUser(harness.ctx.db, alice.userId, async (tx) => {
+        await tx.asset.create({
+          data: {
+            id,
+            userId: alice.userId,
+            sha256,
+            sizeBytes: 100n,
+            mimeType: 'image/jpeg',
+            kind: 'photo',
+            extension: 'jpg',
+            originalName: 'motion.jpg',
+            s3Key: originalKey(alice.userId, sha256, 'jpg'),
+            status: 'verified',
+            verifiedAt: new Date(),
+            processedAt: new Date(),
+            isMotionPhoto: withClip,
+          },
+        });
+        if (withClip)
+          await tx.derivative.create({
+            data: {
+              id: newId(),
+              userId: alice.userId,
+              assetId: id,
+              variant: 'motion',
+              s3Key: motionKey(alice.userId, sha256),
+              mimeType: 'video/mp4',
+              width: 960,
+              height: 720,
+              sizeBytes: 1,
+            },
+          });
+      });
+      made[String(withClip)] = id;
+    }
+    const clip = (await get(alice, `/v1/assets/${made.true}`)).body as AssetDetail;
+    expect(clip.motionUrl).toMatch(/\/streams\/[0-9a-f]{64}\/motion\.mp4\?.*X-Amz-Signature=/);
+    expect(((await get(alice, `/v1/assets/${made.false}`)).body as AssetDetail).motionUrl).toBeNull();
+    expect((await get(bob, `/v1/assets/${made.true}`)).status).toBe(404);
   });
 });
 

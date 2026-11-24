@@ -28,7 +28,9 @@ export const VARIANTS = [
   { variant: 'lg', size: 2048, quality: 82 },
 ] as const;
 
-type IngestContext = Pick<AppContext, 'db' | 's3' | 'env' | 'logger'> & { jobs?: Pick<Jobs, 'transcode'> };
+type IngestContext = Pick<AppContext, 'db' | 's3' | 'env' | 'logger'> & {
+  jobs?: Pick<Jobs, 'transcode' | 'motion'>;
+};
 
 /** Produces a file sharp can read for the asset, or null when there is nothing to show. */
 async function visualFor(asset: Asset, original: string, workDirectory: string, durationMs: number | null) {
@@ -72,6 +74,13 @@ export async function processIngest(ctx: IngestContext, job: IngestJob): Promise
       timeZone: user.timezone,
       fileModifiedAt: asset.originalModifiedAt,
     });
+    if (asset.kind === 'photo' && metadata.isMotionPhoto) {
+      await ctx.jobs?.motion({
+        userId: job.userId,
+        assetId: asset.id,
+        ...(job.localPath ? { localPath: job.localPath } : {}),
+      });
+    }
     if (asset.kind === 'video') {
       const probe = await probeVideo(original.path).catch(() => null);
       if (probe) {

@@ -145,6 +145,8 @@ export interface AssetDetail extends AssetTile {
   downloadUrl: string;
   /** Streaming versions (HLS) by their short side, e.g. [360, 720, 1080]; null until made. */
   stream: { qualities: number[] } | null;
+  /** A motion photo's clip (H.264 MP4), presigned; null for other photos or until made. */
+  motionUrl: string | null;
   processing: { done: boolean; error: string | null };
 }
 

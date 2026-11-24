@@ -17,6 +17,8 @@ export interface Jobs {
   ingest(job: IngestJob): Promise<void>;
   /** Streaming versions of a video. `priority`: lower runs first (1 = has a local copy). */
   transcode(job: TranscodeJob, options?: { priority?: number }): Promise<void>;
+  /** The playable clip of a motion photo (same queue as videos; short). */
+  motion(job: TranscodeJob): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -47,6 +49,17 @@ export function createJobs(connection: Redis): Jobs {
         removeOnComplete: 1000,
         removeOnFail: false,
         ...(options.priority ? { priority: options.priority } : {}),
+      });
+    },
+    async motion(job) {
+      await transcode.add('motion', job, {
+        jobId: `motion-${job.assetId}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 60_000 },
+        removeOnComplete: 1000,
+        removeOnFail: false,
+        // Clips are seconds long: ahead of the video backlog.
+        priority: 1,
       });
     },
     async close() {

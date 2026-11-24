@@ -7,6 +7,7 @@ import { runCatalogExport, runDatabaseBackup, runIntegrityCheck } from './worker
 import { exiftool } from './workers/media-tools';
 import { createJobs, QUEUE, type IngestJob, type TranscodeJob } from './workers/queues';
 import { consumeS3Events } from './workers/s3-events';
+import { processMotion } from './workers/motion';
 import { processTranscode } from './workers/transcode';
 
 const config = env();
@@ -30,7 +31,8 @@ ingest.on('failed', (job, error) =>
 // ffmpeg uses every core already; one video at a time keeps the computer usable.
 const transcode = new Worker<TranscodeJob>(
   QUEUE.transcode,
-  async (job) => processTranscode(context, job.data),
+  async (job) =>
+    job.name === 'motion' ? processMotion(context, job.data) : processTranscode(context, job.data),
   {
     connection,
     concurrency: Number(process.env.TRANSCODE_CONCURRENCY ?? 1),

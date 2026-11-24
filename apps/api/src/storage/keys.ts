@@ -31,6 +31,12 @@ export function streamKey(userId: string, sha256: string, height: number): strin
   return `users/${userId}/streams/${sha256}/${height}p.mp4`;
 }
 
+/** The playable clip of a motion photo. */
+export function motionKey(userId: string, sha256: string): string {
+  assertParts(userId, sha256);
+  return `users/${userId}/streams/${sha256}/motion.mp4`;
+}
+
 /** Parses keys written by the app or dropped into a user's inbox. Anything else returns null. */
 export function parseKey(
   key: string,

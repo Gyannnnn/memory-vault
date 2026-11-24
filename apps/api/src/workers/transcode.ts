@@ -60,7 +60,7 @@ export function planRenditions(probe: Pick<StreamProbe, 'width' | 'height' | 'fr
 }
 
 /** HDR (PQ or HLG) → SDR BT.709, so HDR phone clips don't look washed out in browsers. */
-const TONE_MAP =
+export const TONE_MAP =
   'zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,';
 
 /**

@@ -21,6 +21,11 @@ export class FakeJobs implements Jobs {
     this.transcoded.push(job);
     return Promise.resolve();
   }
+  readonly motions: TranscodeJob[] = [];
+  motion(job: TranscodeJob): Promise<void> {
+    this.motions.push(job);
+    return Promise.resolve();
+  }
   close(): Promise<void> {
     return Promise.resolve();
   }
