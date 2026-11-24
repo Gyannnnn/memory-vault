@@ -18,7 +18,8 @@ const kindLabels: Record<AssetTile['kind'], string> = {
 };
 
 export function tileLabel(tile: AssetTile): string {
-  return `${kindLabels[tile.kind]}, ${formatWallTime(tile.localAt)}`;
+  const label = `${kindLabels[tile.kind]}, ${formatWallTime(tile.localAt)}`;
+  return tile.pending ? `${label}, preview still being made` : label;
 }
 
 /** srcset widths: each derivative's longest side is 400 or 1080 px. */
@@ -32,19 +33,22 @@ function sources(tile: AssetTile): { src: string; srcSet: string } | null {
   };
 }
 
+/** No preview: a loader while one is being made, otherwise what kind of file it is. */
 function Placeholder({ tile }: { tile: AssetTile }) {
-  const Icon =
-    tile.kind === 'video'
+  const Icon = tile.pending
+    ? Loader
+    : tile.kind === 'video'
       ? Film
       : tile.kind === 'document'
         ? FileText
         : tile.kind === 'audio'
           ? Music
-          : tile.kind === 'photo' || tile.kind === 'raw'
-            ? Loader
-            : ImageIcon;
+          : ImageIcon;
   return (
-    <span className="absolute inset-0 grid place-items-center text-ink-subtle">
+    <span
+      className="absolute inset-0 grid place-items-center text-ink-subtle"
+      title={tile.pending ? 'Preview still being made' : undefined}
+    >
       <Icon className="size-5" aria-hidden="true" />
     </span>
   );

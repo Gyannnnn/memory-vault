@@ -10,6 +10,7 @@ import {
   ExternalLink,
   FileText,
   Info,
+  Loader,
   Loader2,
   Minus,
   Plus,
@@ -60,15 +61,94 @@ function ToolbarButton({
   );
 }
 
+/** Whether the viewer shows the original because the file has no preview yet. */
+function showsOriginal(tile: AssetTile, detail: AssetDetail | undefined): boolean {
+  return (
+    tile.kind !== 'video' &&
+    tile.pending &&
+    !tile.thumb &&
+    detail !== undefined &&
+    !detail.preview &&
+    BROWSER_IMAGES.has(detail.mimeType)
+  );
+}
+
+function OpenOriginal({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink underline-offset-4 hover:underline"
+    >
+      Open the original <ExternalLink className="size-4" aria-hidden="true" />
+    </a>
+  );
+}
+
+/**
+ * The original file, for a photo whose preview hasn't been made yet. Browsers apply the
+ * EXIF rotation themselves; the natural size tells the stage its shape.
+ */
+function OriginalImage({
+  detail,
+  onNaturalSize,
+}: {
+  detail: AssetDetail;
+  onNaturalSize?: (width: number, height: number) => void;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="grid size-full place-items-center px-6 text-center text-ink-muted">
+        <div>
+          <p className="font-medium text-ink">{detail.name}</p>
+          <p className="mt-1 text-sm">
+            The original couldn’t be shown here, and its preview isn’t ready yet.
+          </p>
+          <OpenOriginal href={detail.originalUrl} />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="relative size-full">
+      {!loaded && (
+        <Loader2
+          className="absolute inset-0 m-auto size-6 animate-spin text-ink-muted"
+          aria-label="Loading the original"
+        />
+      )}
+      <img
+        src={detail.originalUrl}
+        alt=""
+        draggable={false}
+        onLoad={(event) => {
+          setLoaded(true);
+          onNaturalSize?.(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight);
+        }}
+        onError={() => setFailed(true)}
+        className={cn(
+          'absolute inset-0 size-full object-contain transition-opacity duration-(--duration-base)',
+          loaded ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+    </div>
+  );
+}
+
 /** Photo, video or file, shown as large as it fits. */
 function Media({
   tile,
   detail,
   zoomed,
+  onNaturalSize,
 }: {
   tile: AssetTile;
   detail: AssetDetail | undefined;
   zoomed: boolean;
+  onNaturalSize?: (width: number, height: number) => void;
 }) {
   const [largeLoaded, setLargeLoaded] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -81,14 +161,7 @@ function Media({
         <p className="mt-1 text-sm text-ink-muted">
           Its format isn’t supported here. Streaming versions that play everywhere come in the next milestone.
         </p>
-        <a
-          href={detail.originalUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium underline-offset-4 hover:underline"
-        >
-          Open the original <ExternalLink className="size-4" aria-hidden="true" />
-        </a>
+        <OpenOriginal href={detail.originalUrl} />
       </div>
     ) : (
       <video
@@ -108,21 +181,24 @@ function Media({
   const large = detail?.preview?.lg;
   const original = zoomed && detail && BROWSER_IMAGES.has(detail.mimeType) ? detail.originalUrl : null;
   if (!preview && !large) {
+    if (detail && showsOriginal(tile, detail))
+      return <OriginalImage detail={detail} onNaturalSize={onNaturalSize} />;
+    if (tile.pending && !detail)
+      return <Loader2 className="size-6 animate-spin text-ink-muted" aria-label="Loading" />;
     return (
       <div className="px-6 text-center text-ink-muted">
-        <FileText className="mx-auto size-12" aria-hidden="true" />
-        <p className="mt-3 font-medium text-ink">{tile.name}</p>
-        <p className="mt-1 text-sm">No preview for this file.</p>
-        {detail && (
-          <a
-            href={detail.originalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink underline-offset-4 hover:underline"
-          >
-            Open the original <ExternalLink className="size-4" aria-hidden="true" />
-          </a>
+        {tile.pending ? (
+          <Loader className="mx-auto size-10" aria-hidden="true" />
+        ) : (
+          <FileText className="mx-auto size-12" aria-hidden="true" />
         )}
+        <p className="mt-3 font-medium text-ink">{tile.name}</p>
+        <p className="mt-1 text-sm">
+          {tile.pending
+            ? 'Its preview is still being made and appears here when it’s ready.'
+            : 'No preview for this file.'}
+        </p>
+        {detail && <OpenOriginal href={detail.originalUrl} />}
       </div>
     );
   }
@@ -211,9 +287,22 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
 
   const title = tile ? formatWallTime(tile.localAt) : 'Loading';
   const place = detail.data?.location?.place;
-  const aspect = useMemo(() => (tile ? clampAspect(tile.width, tile.height) : 1), [tile]);
+  // Files not processed yet have no size on record: the original's natural size fits the stage.
+  const [natural, setNatural] = useState<{ id: string; aspect: number } | null>(null);
+  const aspect = useMemo(() => {
+    if (!tile) return 1;
+    if (tile.width && tile.height) return clampAspect(tile.width, tile.height);
+    return natural?.id === tile.id ? natural.aspect : 1;
+  }, [tile, natural]);
+  const onNaturalSize = useCallback(
+    (width: number, height: number) => {
+      if (tile && width > 0 && height > 0) setNatural({ id: tile.id, aspect: clampAspect(width, height) });
+    },
+    [tile],
+  );
   const position = index >= 0 ? `${index + 1} of ${items.length}` : null;
-  const zoomable = tile && tile.kind !== 'video' && (tile.thumb || detail.data?.preview);
+  const original = tile ? showsOriginal(tile, detail.data) : false;
+  const zoomable = tile && tile.kind !== 'video' && (tile.thumb || detail.data?.preview || original);
 
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && onClose()}>
@@ -275,7 +364,12 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                     onZoomChange={setScale}
                     controls={zoom}
                   >
-                    <Media tile={tile} detail={detail.data} zoomed={scale > 1.5} />
+                    <Media
+                      tile={tile}
+                      detail={detail.data}
+                      zoomed={scale > 1.5}
+                      onNaturalSize={onNaturalSize}
+                    />
                   </ZoomStage>
                 )
               ) : detail.isError ? (
@@ -289,6 +383,11 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                 <Loader2 className="m-auto size-6 animate-spin text-ink-muted" aria-label="Loading" />
               )}
 
+              {original && (
+                <p className="pointer-events-none absolute bottom-3 left-1/2 max-w-[calc(100%-2rem)] -translate-x-1/2 truncate rounded-full bg-scrim/80 px-3 py-1.5 text-xs text-ink-muted">
+                  Showing the original while its preview is made
+                </p>
+              )}
               {previous && (
                 <Button
                   variant="ghost"
