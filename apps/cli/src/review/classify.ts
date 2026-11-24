@@ -7,6 +7,8 @@ import { LiveView } from '../ui/live';
 import { interruptSignal } from '../ui/pool';
 
 const SCORABLE = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'heic', 'heif']);
+/** Caches, temp files and markers are junk by nature; scoring them would only cost USB time. */
+const UNSCORED_REASONS = new Set(['thumbnail-cache', 'temp-file', 'system-file']);
 const BATCH = 32;
 
 interface JunkResult {
@@ -38,7 +40,8 @@ export async function classify(manifest: Manifest, sourceIds: SourceId[]): Promi
           item.decision === null &&
           item.junkScore === null &&
           SCORABLE.has(item.ext ?? '') &&
-          (item.size ?? 0) > 0,
+          (item.size ?? 0) > 0 &&
+          !item.reasons.some((reason) => UNSCORED_REASONS.has(reason)),
       );
     let scored = 0;
     let unreadable = 0;
