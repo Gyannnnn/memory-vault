@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { copyFileSync, existsSync, readdirSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, openSync, readdirSync, readSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { ExifTool } from 'exiftool-vendored';
@@ -24,6 +24,32 @@ async function firstAvailable(candidates: string[]): Promise<string> {
     }
   }
   throw new Error(`none of ${candidates.join(', ')} is installed; run the worker in its Docker image`);
+}
+
+const HEVC_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs']);
+
+/**
+ * Whether a file starts like an HEVC-coded HEIF image, whatever its name says. Phones save
+ * some HEIC photos as ".jpg" (Instagram does), and sharp's own decoder can't read HEVC.
+ * AVIF (AV1-coded HEIF) is left out: sharp reads that itself.
+ */
+export function isHevcHeif(head: Buffer): boolean {
+  if (head.length < 16 || head.toString('latin1', 4, 8) !== 'ftyp') return false;
+  const boxEnd = Math.min(head.readUInt32BE(0), head.length);
+  const brands = [head.toString('latin1', 8, 12)];
+  for (let offset = 16; offset + 4 <= boxEnd; offset += 4)
+    brands.push(head.toString('latin1', offset, offset + 4));
+  return brands.some((brand) => HEVC_BRANDS.has(brand));
+}
+
+export function looksLikeHevcHeif(path: string): boolean {
+  const head = Buffer.alloc(64);
+  const descriptor = openSync(path, 'r');
+  try {
+    return isHevcHeif(head.subarray(0, readSync(descriptor, head, 0, head.length, 0)));
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 /** HEIC/HEIF → JPEG via libheif, which applies the image's rotation and mirroring. */

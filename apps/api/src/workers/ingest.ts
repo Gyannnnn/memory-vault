@@ -12,7 +12,15 @@ import { newId, withUser } from '../db';
 import type { Asset } from '../generated/prisma/client';
 import { thumbKey } from '../storage/keys';
 import { normalizeMetadata } from './metadata';
-import { exiftool, heifToJpeg, pdfFirstPage, probeVideo, rawPreview, videoPoster } from './media-tools';
+import {
+  exiftool,
+  heifToJpeg,
+  looksLikeHevcHeif,
+  pdfFirstPage,
+  probeVideo,
+  rawPreview,
+  videoPoster,
+} from './media-tools';
 import type { IngestJob } from './queues';
 
 export const VARIANTS = [
@@ -57,7 +65,7 @@ async function obtainOriginal(ctx: IngestContext, asset: Asset, job: IngestJob, 
 async function visualFor(asset: Asset, original: string, workDirectory: string, durationMs: number | null) {
   const extension = asset.extension.toLowerCase();
   if (asset.kind === 'photo') {
-    return ['heic', 'heif', 'hif'].includes(extension)
+    return ['heic', 'heif', 'hif'].includes(extension) || looksLikeHevcHeif(original)
       ? heifToJpeg(original, join(workDirectory, 'decoded.jpg'))
       : original;
   }
