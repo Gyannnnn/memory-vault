@@ -19,7 +19,17 @@ export async function review(
     const { buildReviewUi } = await import('../../scripts/build-review');
     await buildReviewUi();
   }
-  for (const id of sourceIds) manifest.holdForReview(id);
+  let inherited = { kept: 0, skipped: 0 };
+  for (const id of sourceIds) {
+    const result = manifest.inheritDecisions(id);
+    inherited = { kept: inherited.kept + result.kept, skipped: inherited.skipped + result.skipped };
+    manifest.holdForReview(id);
+  }
+  if (inherited.kept + inherited.skipped > 0) {
+    console.log(
+      `Carried over earlier decisions for identical files: ${inherited.kept} already stored (kept), ${inherited.skipped} skipped before. You can still change them.`,
+    );
+  }
   const server = await startReviewServer({
     manifest,
     sourceIds,

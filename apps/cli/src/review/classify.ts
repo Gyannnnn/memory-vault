@@ -30,9 +30,16 @@ export async function classify(manifest: Manifest, sourceIds: SourceId[]): Promi
   const { signal, dispose } = interruptSignal(() => view.finish(['Stopping; scores so far are saved.']));
   const stage = createPhoneStager(manifest, { keepStaging: true });
   try {
+    for (const id of sourceIds) manifest.holdForReview(id);
     const pending = manifest
       .reviewItems(sourceIds)
-      .filter((item) => item.junkScore === null && SCORABLE.has(item.ext ?? '') && (item.size ?? 0) > 0);
+      .filter(
+        (item) =>
+          item.decision === null &&
+          item.junkScore === null &&
+          SCORABLE.has(item.ext ?? '') &&
+          (item.size ?? 0) > 0,
+      );
     let scored = 0;
     let unreadable = 0;
     for (let start = 0; start < pending.length && !signal.aborted; start += BATCH) {

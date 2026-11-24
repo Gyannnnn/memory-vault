@@ -384,7 +384,35 @@ export class Manifest {
   }
 
   /** Puts review files without a decision into awaiting_review, and returns how many are waiting. */
+  /**
+   * A review file whose content is already stored is kept (it only adds a location);
+   * one whose content was skipped elsewhere is skipped. Either can still be changed.
+   */
+  inheritDecisions(sourceId: SourceId): { kept: number; skipped: number } {
+    const candidates = `source_id = ? AND entry_type = 'file' AND selected = 1 AND route = 'review'
+      AND decision IS NULL AND sha256 IS NOT NULL`;
+    const kept = this.db
+      .prepare(
+        `UPDATE files SET decision = 'approved', updated_at = ?,
+           status = CASE WHEN status = 'awaiting_review' THEN 'pending' ELSE status END
+         WHERE ${candidates} AND EXISTS (
+           SELECT 1 FROM files o WHERE o.sha256 = files.sha256 AND o.status IN ('uploaded', 'deduplicated'))`,
+      )
+      .run(Date.now(), sourceId);
+    const skipped = this.db
+      .prepare(
+        `UPDATE files SET decision = 'skipped', updated_at = ?,
+           status = CASE WHEN status IN ('pending', 'awaiting_review') THEN 'skipped' ELSE status END
+         WHERE ${candidates} AND EXISTS (
+           SELECT 1 FROM files o WHERE o.sha256 = files.sha256 AND o.decision = 'skipped'
+             AND NOT (o.source_id = files.source_id AND o.path = files.path))`,
+      )
+      .run(Date.now(), sourceId);
+    return { kept: Number(kept.changes), skipped: Number(skipped.changes) };
+  }
+
   holdForReview(sourceId: SourceId): number {
+    this.inheritDecisions(sourceId);
     this.db
       .prepare(
         `UPDATE files SET status = 'awaiting_review', updated_at = ?

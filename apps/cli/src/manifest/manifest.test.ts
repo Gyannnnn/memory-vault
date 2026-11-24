@@ -65,4 +65,28 @@ describe('scan + manifest', () => {
       'WhatsApp Images/IMG-20240101-WA0002.jpg',
     ]);
   });
+
+  it('carries review decisions over to identical files from another source', async () => {
+    const manifest = new Manifest(':memory:');
+    const laptop = source();
+    const phone = mkdtempSync(join(tmpdir(), 'vault-phone-'));
+    mkdirSync(join(phone, 'WhatsApp Images'), { recursive: true });
+    writeFileSync(join(phone, 'WhatsApp Images/IMG-20240101-WA0001.jpg'), 'forward');
+    writeFileSync(join(phone, 'WhatsApp Images/IMG-20240101-WA0009.jpg'), 'photo-a');
+    writeFileSync(join(phone, 'WhatsApp Images/IMG-20240101-WA0010.jpg'), 'brand new');
+    await scanLocalSource(manifest, 'laptop:test', laptop);
+    await scanLocalSource(manifest, 'other:test', phone);
+    manifest.setDecision('laptop:test', 'WhatsApp Images/IMG-20240101-WA0001.jpg', 'skipped');
+    manifest.setStatus('laptop:test', 'Camera/a.jpg', 'uploaded');
+
+    expect(manifest.inheritDecisions('other:test')).toEqual({ kept: 1, skipped: 1 });
+    expect(manifest.file('other:test', 'WhatsApp Images/IMG-20240101-WA0001.jpg')).toMatchObject({
+      decision: 'skipped',
+      status: 'skipped',
+    });
+    expect(manifest.file('other:test', 'WhatsApp Images/IMG-20240101-WA0009.jpg')).toMatchObject({
+      decision: 'approved',
+    });
+    expect(manifest.file('other:test', 'WhatsApp Images/IMG-20240101-WA0010.jpg')?.decision).toBeNull();
+  });
 });
