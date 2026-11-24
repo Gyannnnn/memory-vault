@@ -85,6 +85,8 @@ export interface AssetTile {
   durationMs: number | null;
   isMotionPhoto: boolean;
   thumb: MediaUrls | null;
+  /** Not processed yet: its preview, size and capture details are still to come. */
+  pending: boolean;
 }
 
 export interface TimelineBucket {

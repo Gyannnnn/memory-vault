@@ -3,6 +3,8 @@ import { z } from 'zod';
 import {
   assetSearchQuery,
   onThisDayQuery,
+  pendingOriginalsQuery,
+  processingStatusRequest,
   recordOriginsRequest,
   timelineMonthParam,
   verifyAssetsRequest,
@@ -12,6 +14,7 @@ import { authOf } from '../http/auth-middleware';
 import { parse } from '../http/errors';
 import { UploadService } from '../uploads/service';
 import { BrowseService } from './browse';
+import { ProcessingService } from './processing';
 
 const folderQuery = z.object({
   cursor: z.string().max(300).optional(),
@@ -22,6 +25,7 @@ export function libraryRoutes(ctx: AppContext): Router {
   const router = Router();
   const uploads = new UploadService(ctx);
   const browse = new BrowseService(ctx);
+  const processing = new ProcessingService(ctx);
 
   router.post('/assets/origins', async (request, response) => {
     const { items } = parse(recordOriginsRequest, request.body);
@@ -67,6 +71,17 @@ export function libraryRoutes(ctx: AppContext): Router {
   router.get('/memories/on-this-day', async (request, response) => {
     const { date } = parse(onThisDayQuery, request.query);
     response.json(await browse.onThisDay(authOf(request).userId, date));
+  });
+
+  router.get('/processing/pending', async (request, response) => {
+    response.json(
+      await processing.pending(authOf(request).userId, parse(pendingOriginalsQuery, request.query)),
+    );
+  });
+
+  router.post('/processing/status', async (request, response) => {
+    const { ids } = parse(processingStatusRequest, request.body);
+    response.json(await processing.status(authOf(request).userId, ids));
   });
 
   return router;

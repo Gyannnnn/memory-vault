@@ -7,4 +7,5 @@ export * from './sources';
 export * from './api/auth';
 export * from './api/uploads';
 export * from './api/library';
+export * from './api/processing';
 export * from './time';

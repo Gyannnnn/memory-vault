@@ -29,24 +29,25 @@ interface TileRow {
   is_motion_photo: boolean;
   sha256: string;
   has_thumb: boolean;
+  pending: boolean;
 }
 
 const MEDIA = Prisma.sql`a.kind IN ('photo', 'video', 'raw')`;
 const TILE_COLUMNS = Prisma.sql`
   a.id, a.kind::text AS kind, a.original_name AS name, a.width, a.height,
   to_char(a.local_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') AS local_at,
-  a.duration_ms, a.is_motion_photo, a.sha256,
+  a.duration_ms, a.is_motion_photo, a.sha256, a.processed_at IS NULL AS pending,
   EXISTS (SELECT 1 FROM derivatives d WHERE d.asset_id = a.id AND d.variant = 'sm') AS has_thumb`;
 
-const visible = (userId: string) =>
+export const visible = (userId: string) =>
   Prisma.sql`a.user_id = ${userId}::uuid AND a.status = 'verified' AND a.deleted_at IS NULL`;
 
 /** Keyset cursor over (local_at, id), newest first. */
-function encodeCursor(row: { local_at: string; id: string }): string {
+export function encodeCursor(row: { local_at: string; id: string }): string {
   return Buffer.from(`${row.local_at}|${row.id}`).toString('base64url');
 }
 
-function decodeCursor(cursor: string): { localAt: string; id: string } | null {
+export function decodeCursor(cursor: string): { localAt: string; id: string } | null {
   const [localAt, id] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
   return localAt && id && /^\d{4}-\d{2}-\d{2}T[\d:.]+$/.test(localAt) && /^[0-9a-f-]{36}$/.test(id)
     ? { localAt, id }
@@ -90,6 +91,7 @@ export class BrowseService {
         durationMs: row.duration_ms,
         isMotionPhoto: row.is_motion_photo,
         thumb: row.has_thumb ? await this.urls.thumbs(userId, row.sha256) : null,
+        pending: row.pending,
       })),
     );
   }
