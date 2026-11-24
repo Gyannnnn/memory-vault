@@ -5,10 +5,13 @@ import type { FolderFile } from '@memory-vault/shared';
 import { formatBytes } from '@memory-vault/shared';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { ChevronRight, Download, Folder, FolderOpen, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MediaTile, tileLabel } from '@/components/media/media-tile';
+import { SelectionProvider } from '@/components/selection/selection';
+import { SelectionBar, useZipDownload } from '@/components/selection/selection-bar';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PhotoViewer } from '@/components/viewer/photo-viewer';
 import { usePhotoParam } from '@/components/viewer/use-photo-param';
@@ -129,6 +132,8 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
   const first = listing.data?.pages[0];
   const files = useMemo(() => listing.data?.pages.flatMap((page) => page.files) ?? [], [listing.data]);
   const tiles = useMemo(() => files.map((file) => file.asset), [files]);
+  const order = useMemo(() => tiles.map((tile) => tile.id), [tiles]);
+  const zip = useZipDownload();
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = listing;
   const loadMore = useCallback(() => {
@@ -169,7 +174,24 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
     <>
       <div className="border-b px-4 pt-8 pb-6 sm:px-8">
         {!isRoot && <Breadcrumbs path={first.folder.path} />}
-        <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight">{title}</h1>
+        <div className="mt-1 flex items-start justify-between gap-4">
+          <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight">{title}</h1>
+          {!isRoot && folderId && (
+            <Button
+              variant="outline"
+              className="shrink-0"
+              disabled={zip.busy}
+              onClick={() => void zip.download({ folderId })}
+            >
+              {zip.busy ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Download aria-hidden="true" />
+              )}
+              <span className="max-sm:sr-only">Download folder</span>
+            </Button>
+          )}
+        </div>
         <p className="mt-1 text-sm text-ink-muted">
           {isRoot
             ? 'Every source, mirrored folder by folder exactly as it was on the device.'
@@ -227,7 +249,10 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
 
         {files.length > 0 && (
           <section aria-label="Files">
-            <FileGrid files={files} onOpen={viewer.open} onEndReached={loadMore} />
+            <SelectionProvider key={folderId ?? 'root'} order={order}>
+              <FileGrid files={files} onOpen={viewer.open} onEndReached={loadMore} />
+              <SelectionBar />
+            </SelectionProvider>
           </section>
         )}
 

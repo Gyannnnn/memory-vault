@@ -6,6 +6,8 @@ import { ImageOff } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { GalleryLayout, GallerySection } from '@/components/media/gallery-layout';
 import { VirtualGallery } from '@/components/media/virtual-gallery';
+import { SelectionProvider } from '@/components/selection/selection';
+import { SelectionBar } from '@/components/selection/selection-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PhotoViewer } from '@/components/viewer/photo-viewer';
 import { usePhotoParam } from '@/components/viewer/use-photo-param';
@@ -54,6 +56,12 @@ export function PhotosTimeline() {
         groupByDay: true,
       })),
     [buckets, loaded],
+  );
+
+  // Shift-click ranges run in the order shown, across the months loaded so far.
+  const order = useMemo(
+    () => sections.flatMap((section) => section.items?.map((item) => item.id) ?? []),
+    [sections],
   );
 
   const request = useCallback((months: string[]) => {
@@ -151,9 +159,12 @@ export function PhotosTimeline() {
   return (
     <>
       <OnThisDay />
-      <div className="px-4 pt-2 pb-16 pr-12 sm:px-8 sm:pr-16">
-        <VirtualGallery sections={sections} onOpen={open} onNeedSections={request} onLayout={onLayout} />
-      </div>
+      <SelectionProvider order={order}>
+        <div className="px-4 pt-2 pb-16 pr-12 sm:px-8 sm:pr-16">
+          <VirtualGallery sections={sections} onOpen={open} onNeedSections={request} onLayout={onLayout} />
+        </div>
+        <SelectionBar />
+      </SelectionProvider>
       {scrubber && <TimelineScrubber layout={scrubber.layout} scrollMargin={scrubber.scrollMargin} />}
       {mounted && viewer.photoId && (
         <PhotoViewer

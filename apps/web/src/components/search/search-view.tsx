@@ -7,6 +7,8 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GallerySection } from '@/components/media/gallery-layout';
 import { VirtualGallery } from '@/components/media/virtual-gallery';
+import { SelectionProvider } from '@/components/selection/selection';
+import { SelectionBar } from '@/components/selection/selection-bar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -197,6 +199,7 @@ export function SearchView() {
   });
   const items = useMemo(() => results.data?.pages.flatMap((page) => page.items) ?? [], [results.data]);
   const sections = useMemo(() => toSections(items), [items]);
+  const order = useMemo(() => items.map((item) => item.id), [items]);
   const total = results.data?.pages[0]?.total;
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = results;
   const loadMore = useCallback(() => {
@@ -372,7 +375,11 @@ export function SearchView() {
             <p className="mb-1 text-sm text-ink-muted" aria-live="polite">
               {total !== undefined ? `${total.toLocaleString()} ${total === 1 ? 'result' : 'results'}` : ''}
             </p>
-            <VirtualGallery sections={sections} onOpen={viewer.open} onEndReached={loadMore} />
+            {/* A new search starts a new selection. */}
+            <SelectionProvider key={JSON.stringify(filters)} order={order}>
+              <VirtualGallery sections={sections} onOpen={viewer.open} onEndReached={loadMore} />
+              <SelectionBar />
+            </SelectionProvider>
             {isFetchingNextPage && (
               <Loader2
                 className="mx-auto mt-6 size-5 animate-spin text-ink-muted"
