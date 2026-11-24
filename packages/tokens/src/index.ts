@@ -134,7 +134,8 @@ export function toCss(): string {
   return [
     `:root {\n${statics}\n${light}\n  color-scheme: light;\n}`,
     `@media (prefers-color-scheme: dark) {\n  :root:not([data-theme='light']) {\n${dark.replace(/^/gm, '  ')}\n    color-scheme: dark;\n  }\n}`,
-    `:root[data-theme='dark'] {\n${dark}\n  color-scheme: dark;\n}`,
+    // Any element can opt into the dark palette (e.g. the photo viewer), not only the page root.
+    `:root[data-theme='dark'],\n[data-theme='dark'] {\n${dark}\n  color-scheme: dark;\n}`,
     `@media (prefers-reduced-motion: reduce) {\n  :root {\n    --duration-fast: 0ms;\n    --duration-base: 0ms;\n    --duration-slow: 0ms;\n  }\n}`,
   ].join('\n\n');
 }

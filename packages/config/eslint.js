@@ -13,6 +13,8 @@ export const ignores = [
   '**/.turbo/**',
   '**/generated/**',
   '**/.next/**',
+  '**/.next-*/**',
+  '**/public/vendor/**',
   '**/.expo/**',
   'services/**',
   'reports/**',

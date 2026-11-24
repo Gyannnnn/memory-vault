@@ -36,6 +36,7 @@ build/
 coverage/
 *.tsbuildinfo
 .next/
+.next-*/
 out/
 .expo/
 .vite/
@@ -67,3 +68,4 @@ aws-urls.txt
 # Generated web files
 apps/web/src/app/tokens.generated.css
 apps/web/next-env.d.ts
+apps/web/public/vendor/

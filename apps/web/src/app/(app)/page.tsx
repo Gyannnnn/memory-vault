@@ -1,16 +1,14 @@
 import type { Metadata } from 'next';
-import { Images } from 'lucide-react';
-import { ComingSoon } from '@/components/coming-soon';
+import { PhotosHeader } from '@/components/timeline/photos-header';
+import { PhotosTimeline } from '@/components/timeline/photos-timeline';
 
 export const metadata: Metadata = { title: 'Photos' };
 
 export default function PhotosPage() {
   return (
-    <ComingSoon
-      title="Photos"
-      icon={Images}
-      summary="Your whole library as a timeline, with a year and month scrubber, a photo viewer and “On this day”."
-      milestone="M1"
-    />
+    <>
+      <PhotosHeader />
+      <PhotosTimeline />
+    </>
   );
 }
