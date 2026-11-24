@@ -7,6 +7,8 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
   ChevronRight,
+  CirclePause,
+  CirclePlay,
   Download,
   ExternalLink,
   FileText,
@@ -146,11 +148,14 @@ function Media({
   detail,
   zoomed,
   onNaturalSize,
+  motion = false,
 }: {
   tile: AssetTile;
   detail: AssetDetail | undefined;
   zoomed: boolean;
   onNaturalSize?: (width: number, height: number) => void;
+  /** Play a motion photo's clip over the image (muted, looping). */
+  motion?: boolean;
 }) {
   const [largeLoaded, setLargeLoaded] = useState(false);
 
@@ -201,6 +206,18 @@ function Media({
           )}
         />
       )}
+      {motion && detail?.motionUrl && (
+        <video
+          src={detail.motionUrl}
+          poster={large ?? preview}
+          muted
+          loop
+          autoPlay
+          playsInline
+          aria-label="Motion photo playing"
+          className="absolute inset-0 size-full object-contain"
+        />
+      )}
     </div>
   );
 }
@@ -223,6 +240,14 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
   const next = index >= 0 && index < items.length - 1 ? items[index + 1] : undefined;
   const [infoOpen, setInfoOpen] = useState(readInfoPreference);
   const [scale, setScale] = useState(1);
+  // Which photo's motion clip is playing: moving to another photo stops it.
+  const [motionFor, setMotionFor] = useState<string | null>(null);
+  const hasMotion = tile?.kind === 'photo' && Boolean(detail.data?.motionUrl);
+  const motionOn = hasMotion && motionFor === currentId;
+  const toggleMotion = useCallback(
+    () => setMotionFor((playing) => (playing === currentId ? null : currentId)),
+    [currentId],
+  );
   const zoom = useRef<ZoomControls>(null);
 
   const go = useCallback((target: AssetTile | undefined) => target && onShow(target.id), [onShow]);
@@ -258,6 +283,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
       if (event.key === 'ArrowLeft') go(previous);
       else if (event.key === 'ArrowRight') go(next);
       else if (event.key === 'i') toggleInfo();
+      else if (event.key === 'm' && hasMotion) toggleMotion();
       else if (event.key === '+' || event.key === '=') zoom.current?.zoom(1);
       else if (event.key === '-') zoom.current?.zoom(-1);
       else if (event.key === '0') zoom.current?.zoom(0);
@@ -266,7 +292,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, previous, next, toggleInfo]);
+  }, [go, previous, next, toggleInfo, hasMotion, toggleMotion]);
 
   const title = tile ? formatWallTime(tile.localAt) : 'Loading';
   const place = detail.data?.location?.place;
@@ -339,6 +365,15 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                   <TooltipContent>Download the original</TooltipContent>
                 </Tooltip>
               )}
+              {hasMotion && (
+                <ToolbarButton
+                  label={motionOn ? 'Stop motion (m)' : 'Play motion (m)'}
+                  onClick={toggleMotion}
+                  pressed={motionOn}
+                >
+                  {motionOn ? <CirclePause /> : <CirclePlay />}
+                </ToolbarButton>
+              )}
               <ToolbarButton label="Details (i)" onClick={toggleInfo} pressed={infoOpen}>
                 <Info />
               </ToolbarButton>
@@ -364,6 +399,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                       detail={detail.data}
                       zoomed={scale > 1.5}
                       onNaturalSize={onNaturalSize}
+                      motion={motionOn}
                     />
                   </ZoomStage>
                 )
