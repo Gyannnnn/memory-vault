@@ -14,15 +14,16 @@ import { Manifest, type EntryUpsert, type FileRow } from '../manifest/manifest';
 import { LiveView, progressLine, RateMeter } from '../ui/live';
 import { interruptSignal } from '../ui/pool';
 import {
-  parseDevices,
   parseDf,
   parseSha256Line,
   parseStatLine,
   PHONE_ROOT,
+  pickDevice,
   runAdb,
   type AdbDevice,
   type PhoneFileStat,
 } from './adb';
+import { stagePending } from './stage-pending';
 
 export const DEFAULT_EXCLUDED = ['Android/data', 'Android/obb'];
 
@@ -37,32 +38,6 @@ function parseSourceId(value: string): SourceId {
 const relativeToRoot = (path: string) => path.slice(PHONE_ROOT.length + 1);
 const isExcludedByDefault = (path: string) =>
   DEFAULT_EXCLUDED.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
-
-export async function pickDevice(serial?: string): Promise<AdbDevice> {
-  const { stdout } = await runAdb({ op: 'devices' });
-  const devices = parseDevices(stdout);
-  const usable = devices.filter((device) => device.state === 'device');
-  if (serial) {
-    const match = devices.find((device) => device.serial === serial);
-    if (!match) throw new Error(`device ${serial} is not connected`);
-    if (match.state !== 'device')
-      throw new Error(`device ${serial} is ${match.state}; unlock it and accept the prompt`);
-    return match;
-  }
-  if (usable.length === 1) return usable[0]!;
-  if (usable.length > 1)
-    throw new Error(
-      `several devices connected; pick one with --serial (${usable.map((d) => d.serial).join(', ')})`,
-    );
-  if (devices.some((device) => device.state === 'unauthorized')) {
-    throw new Error(
-      'the phone has not authorised this computer yet: unlock it and tap Allow on the USB debugging prompt',
-    );
-  }
-  throw new Error(
-    'no phone found over adb. Turn on USB debugging (docs/setup/phase-0-aws-setup.md §0.2), reconnect the cable, then run `vault phone devices`.',
-  );
-}
 
 /** Groups a phone path into the folder shown in the inventory, with a little more detail where it matters. */
 export function displayFolder(path: string): string {
@@ -443,4 +418,22 @@ export function registerPhoneCommands(program: Command): void {
     .requiredOption('-s, --source <id>', 'source id, e.g. phone:s21fe', parseSourceId)
     .option('--serial <serial>', 'device serial when several are connected')
     .action((options: { source: SourceId; serial?: string }) => hashOnPhone(options.source, options.serial));
+
+  phone
+    .command('stage-pending')
+    .description(
+      'Copy phone files the worker has not processed yet into staging, so it reads them locally instead of from S3',
+    )
+    .requiredOption('-s, --source <id>', 'source id, e.g. phone:s21fe', parseSourceId)
+    .option('--serial <serial>', 'device serial when several are connected')
+    .option('--window-gb <gb>', 'most GB of copies waiting for the worker at once', parseWindowGb, 4)
+    .action((options: { source: SourceId; serial?: string; windowGb: number }) =>
+      stagePending(options.source, { serial: options.serial, windowBytes: options.windowGb * 1024 ** 3 }),
+    );
+}
+
+function parseWindowGb(value: string): number {
+  const gb = Number(value);
+  if (!Number.isFinite(gb) || gb < 0.5 || gb > 100) throw new InvalidArgumentError('expected 0.5 to 100');
+  return gb;
 }

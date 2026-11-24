@@ -7,7 +7,14 @@ import type { FileRow, Manifest, SourceRow } from '../manifest/manifest';
 import type { StagedFile } from '../upload/engine';
 import { parseSha256Line, PHONE_ROOT, runAdb } from './adb';
 
-const HEADROOM_BYTES = 10 * 1024 ** 3;
+/** Staging always leaves this much disk free. */
+export const HEADROOM_BYTES = 10 * 1024 ** 3;
+
+/** Free space on the filesystem holding `path`, for an unprivileged user. */
+export function freeBytes(path: string): number {
+  const stats = statfsSync(path);
+  return stats.bavail * stats.bsize;
+}
 
 export const stagingRootFor = (sourceId: string) => join(config.stagingDir, sourceId.replace(':', '-'));
 
@@ -29,10 +36,7 @@ export function createPhoneStager(manifest: Manifest, options: { keepStaging: bo
     mkdirSync(dirname(destination), { recursive: true });
     const reader = createSourceReader(root);
 
-    const free = (() => {
-      const stats = statfsSync(dirname(destination));
-      return stats.bavail * stats.bsize;
-    })();
+    const free = freeBytes(dirname(destination));
     if (free - (row.size ?? 0) < HEADROOM_BYTES) {
       throw new Error(`not enough disk space to stage ${row.path} (${formatBytes(free)} free)`);
     }

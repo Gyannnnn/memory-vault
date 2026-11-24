@@ -172,3 +172,30 @@ export function parseDf(output: string): { totalBytes: number; usedBytes: number
   if (![total, used, free].every((value) => Number.isFinite(value))) return null;
   return { totalBytes: total! * 1024, usedBytes: used! * 1024, freeBytes: free! * 1024 };
 }
+
+/** The one connected, authorised phone (or the one with `serial`), with a clear message otherwise. */
+export async function pickDevice(serial?: string): Promise<AdbDevice> {
+  const { stdout } = await runAdb({ op: 'devices' });
+  const devices = parseDevices(stdout);
+  const usable = devices.filter((device) => device.state === 'device');
+  if (serial) {
+    const match = devices.find((device) => device.serial === serial);
+    if (!match) throw new Error(`device ${serial} is not connected`);
+    if (match.state !== 'device')
+      throw new Error(`device ${serial} is ${match.state}; unlock it and accept the prompt`);
+    return match;
+  }
+  if (usable.length === 1) return usable[0]!;
+  if (usable.length > 1)
+    throw new Error(
+      `several devices connected; pick one with --serial (${usable.map((d) => d.serial).join(', ')})`,
+    );
+  if (devices.some((device) => device.state === 'unauthorized')) {
+    throw new Error(
+      'the phone has not authorised this computer yet: unlock it and tap Allow on the USB debugging prompt',
+    );
+  }
+  throw new Error(
+    'no phone found over adb. Turn on USB debugging (docs/setup/phase-0-aws-setup.md §0.2), reconnect the cable, then run `vault phone devices`.',
+  );
+}
