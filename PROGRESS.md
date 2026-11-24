@@ -37,13 +37,36 @@ Status legend: `todo` · `in progress` · `done` · `blocked`
 | 12  | Run the import: laptop → phone → review → reconciliation                  | done        | 65,900 files found, each counted once: 20,346 uploaded (119 GB, all verified in S3), 12,543 duplicates, 22,576 skipped in review, 10,425 excluded, 10 undecided, 0 failed |
 | C5  | **Checkpoint:** Phase 1 summary + feature suggestions                     | in progress | Waiting for the owner's review and yes/no on suggested features                                                                                                           |
 
-## Phase 2 — Web app (outline)
+## Phase 2 — Web app
 
-Next.js, CloudFront, passkey registration on the real domain, browse/timeline/map/search, folders, zip download, HLS + Vidstack, share links, stats, People, RDS.
+Runs on localhost for now; media via short-lived presigned S3 URLs (CloudFront and a domain come with deployment). Detailed plan to be agreed before building.
+
+Core (from the brief): browse, timeline, map, search and filters, folders, zip download, upload with progress, video playback (HLS + Vidstack), sharing links, statistics, People (faces), passkey sign-in screens.
+
+Accepted feature suggestions (2026-11-24, all yes):
+
+| #   | Feature                                                  | Phase    |
+| --- | -------------------------------------------------------- | -------- |
+| 1   | Trash with 30-day restore                                | 2        |
+| 2   | Favorites and albums                                     | 2        |
+| 3   | "On this day" memories                                   | 2        |
+| 4   | EXIF viewer                                              | 2        |
+| 5   | Near-duplicate finder                                    | 2        |
+| 6   | Legacy / emergency access                                | 2        |
+| 7   | One-click full export to an external drive               | 2        |
+| 8   | Audit log of shares and downloads                        | 2        |
+| 9   | Offline favorites on mobile                              | 3        |
+| 10  | Opt-in end-to-end encrypted folders                      | 2 (late) |
+| 11  | Deletion protection (Object Lock or second-account copy) | 2        |
+| 12  | Printable emergency kit (PDF)                            | 2        |
+| 13  | Yearly restore-drill reminder                            | 2        |
+| 14  | Samsung motion-photo playback                            | 2        |
+| 15  | Automatic trip albums                                    | 2        |
+| 16  | Local OCR text search                                    | 2        |
 
 ## Phase 3 — Mobile app (outline)
 
-Expo dev builds, approval-based sync, trip detection, junk review, native passkeys.
+Expo dev builds, approval-based sync, trip detection, junk review, native passkeys, offline favorites.
 
 ## Decisions
 
@@ -67,8 +90,9 @@ Expo dev builds, approval-based sync, trip detection, junk review, native passke
 | 2026-11-24 | Capture time: EXIF with zone → EXIF in the account's time zone → file name → file mtime                  | WhatsApp images carry no EXIF; their names carry the date                                                                            |
 | 2026-11-24 | The "taste" skill is used only for marketing pages; app screens use ui-ux-pro-max + `packages/tokens`    | Owner's choice: taste targets marketing sites and runs a Stop hook plus many scripts                                                 |
 | 2026-11-24 | Shared design tokens: neutral "gallery" palette, Inter, 4 px spacing, WCAG AA in light and dark (tested) | Photos carry the colour; one system for web, mobile and local tools                                                                  |
+| 2026-11-24 | Phase 2 runs on localhost; deploy later (web on Vercel, API/worker on EC2 when load grows)               | Owner's choice; no hosting cost yet. Media via presigned S3 URLs until CloudFront                                                    |
+| 2026-11-24 | All 16 suggested features accepted                                                                       | Owner's answers at the Phase 1 checkpoint                                                                                            |
 
 ## Open questions
 
-- Phase 2: domain name for the app (becomes the passkey RP ID — keep it for life).
-- Phase 2: where the API runs (ECS Fargate, App Runner, EC2, …).
+- Domain name: owner has or will buy one; passkeys registered on localhost must be re-registered on it.
