@@ -13,12 +13,23 @@ function credentials(config: AwsEnv) {
   return { accessKeyId: config.AWS_ACCESS_KEY_ID, secretAccessKey: config.AWS_SECRET_ACCESS_KEY };
 }
 
-export function createS3Client(config: AwsEnv): S3Client {
+/**
+ * The SDK waits forever by default. A connection that stalls mid-download (a flaky line,
+ * a sleeping laptop) would then hold a worker slot for good; with these limits the request
+ * fails instead and the job is retried.
+ */
+export const S3_TIMEOUTS = { connectionMs: 10_000, idleSocketMs: 120_000 } as const;
+
+export function createS3Client(
+  config: AwsEnv,
+  timeouts: { connectionMs: number; idleSocketMs: number } = S3_TIMEOUTS,
+): S3Client {
   return new S3Client({
     region: config.AWS_REGION,
     credentials: credentials(config),
     ...(config.S3_ENDPOINT ? { endpoint: config.S3_ENDPOINT } : {}),
     forcePathStyle: config.S3_FORCE_PATH_STYLE,
+    requestHandler: { connectionTimeout: timeouts.connectionMs, socketTimeout: timeouts.idleSocketMs },
     // Checksums are always set explicitly (SHA-256); without this the SDK adds its
     // own CRC32 headers, which break presigned uploads.
     requestChecksumCalculation: 'WHEN_REQUIRED',
