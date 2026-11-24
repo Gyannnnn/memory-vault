@@ -49,6 +49,9 @@ pnpm vault upload laptop:s21fe phone:s21fe
 pnpm vault classify && pnpm vault review
 pnpm vault report --verify   # every file checked in S3; writes safe-to-delete lists
 
+# Worker backlog: give it local copies of waiting phone files over USB instead of S3 downloads
+pnpm vault phone stage-pending --source phone:s21fe
+
 # Upkeep
 pnpm vault-admin integrity | backup | catalog | rebuild-index
 pnpm vault-admin load-places   # place names for photos with GPS (GeoNames, CC BY 4.0)

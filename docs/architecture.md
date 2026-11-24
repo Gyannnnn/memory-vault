@@ -62,6 +62,8 @@ Access tokens are EdDSA JWTs valid for 10 minutes. Refresh tokens rotate on ever
 2. `POST /v1/uploads/check` finds content already stored. Its locations are recorded with `POST /v1/assets/origins`.
 3. For new content, `POST /v1/uploads` returns either a presigned single PUT (≤ 16 MiB) or a multipart upload. Parts are presigned with their SHA-256 (`POST /v1/uploads/{id}/parts`).
 4. `POST /v1/uploads/{id}/complete` makes the API check size and checksum with S3, then mark the asset verified, record its origin and mirrored folder entry, and queue `ingest`.
-5. The worker extracts EXIF, generates WebP previews and computes a perceptual hash, preferring the uploader's local copy (read-only mount) over downloading.
+5. The worker extracts EXIF, generates WebP previews and computes a perceptual hash. It prefers a local copy, trusted only if its size and SHA-256 match: the uploader's file (read-only mount) or, for a phone, a copy `vault phone stage-pending` put in staging. Otherwise it downloads the original from S3. S3 requests give up after 10 s connecting or 2 minutes without data, so a stalled download fails and is retried instead of holding a worker slot.
+
+Files waiting for the worker: `GET /v1/processing/pending?source=…` lists them with their paths in that source, and `POST /v1/processing/status` reports which are done. `vault phone stage-pending` uses both: it pulls those files from the phone (read-only) a few GB ahead of the worker, at the path each waiting job already looks at, and deletes each copy once its file is processed. The viewer shows the original of a waiting photo when the browser can display it.
 
 Resume: re-running finds the open upload session and asks S3 which parts it already has.

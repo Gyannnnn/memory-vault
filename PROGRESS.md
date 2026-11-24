@@ -55,6 +55,16 @@ M0 delivered: `apps/web` (Next.js 16, Tailwind 4 with the shared design tokens, 
 
 M1 delivered: the Photos timeline (months laid out before they load, small days packed side by side, a year/month scrubber that works with the keyboard), "On this day", the photo viewer (zoom, pan, swipe, arrow keys, deep links, and details: capture time and where it came from, place with a mini map, camera settings, file, original locations), folders mirrored from each source, a map of every photo with GPS (clusters, plus the photos in view), and search (word prefixes over file names, original folders, places and cameras; filters for type, year, place, camera and source). Place names come from GeoNames inside Postgres (`pnpm vault-admin load-places`; loaded 2026-11-24, all 8,545 files with GPS named). Database backed up to `reports/db-before-m1-2026-11-24.dump` before the migration.
 
+M1 follow-up (2026-11-24, after the first look at the real library): many 2026 photos had no preview because about 5,900 phone files were still waiting for the worker. Their staging copies had been deleted right after upload, so the worker re-downloaded each from S3 at the line's ~0.5 MB/s. The laptop then slept from 17:44 to 21:51; on waking, the worker's open S3 downloads hung with no timeout.
+
+- S3 requests now give up after 10 s connecting or 2 minutes without data, so the job is retried.
+- `vault phone stage-pending` copies the waiting phone files over USB (read-only, each checked against the server's SHA-256) to where the jobs look, a few GB ahead of the worker, and deletes each copy once processed. It pauses and waits if the phone is disconnected. Run on 2026-11-24: all 5,499 waiting files processed in about 1.5 hours (most from local copies at ~30 MB/s); staging left empty.
+- Photos that are really HEIC but named `.jpg` (Instagram saves these) failed with "bad seek"; the worker now recognises HEIC by content. 16 such files processed after the fix.
+- The viewer shows the original of a photo still being processed, and waiting tiles say so.
+- Waiting jobs were reordered newest first, so the top of the timeline fills first.
+- Result: 0 files waiting, 0 failed jobs; `vault-admin integrity` healthy (20,346 in S3); 11,045 of 11,112 files with GPS have a place name. The other 67 carry a blank (0°, 0°) GPS fix.
+- Still to do: `vault upload` should keep a phone file's temporary copy until it is processed, so a big import doesn't leave a backlog again; failed jobs need a retry command, and the app should say when processing has stopped; ignore (0°, 0°) GPS positions.
+
 Core (from the brief): browse, timeline, map, search and filters, folders, zip download, upload with progress, video playback (HLS + Vidstack), sharing links, statistics, People (faces), passkey sign-in screens.
 
 Accepted feature suggestions (2026-11-24, all yes):
@@ -109,6 +119,7 @@ Expo dev builds, approval-based sync, trip detection, junk review, native passke
 | 2026-11-24 | Faces: InsightFace buffalo_l                                                                             | Owner's choice for accuracy. **Its pretrained models are non-commercial only: replace (e.g. YuNet + SFace) or license before any paid launch** |
 | 2026-11-24 | Email via Amazon SES (sandbox until a domain exists)                                                     | Owner's choice                                                                                                                                 |
 | 2026-11-24 | Deletion protection: S3 Object Lock, governance, 30-day default retention                                | Versions can't be deleted for 30 days even with a stolen key; also backs the 30-day trash                                                      |
+| 2026-11-24 | Process a phone backlog from USB copies (`vault phone stage-pending`), not S3 downloads                  | ~26 MB/s over USB vs ~0.5 MB/s down the line; copies verified by SHA-256 and deleted once processed                                            |
 
 ## Open questions
 
