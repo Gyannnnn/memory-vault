@@ -39,7 +39,7 @@ export async function review(
   });
   console.log(`Review page: ${server.url}`);
   console.log(
-    'Decisions are saved as you go. Press Ctrl+C when you are done, then run `vault upload` to send approved files.',
+    `Decisions are saved as you go. Press Ctrl+C when you are done, then send the files you kept with: pnpm vault upload ${sourceIds.join(' ')}`,
   );
   if (options.open) spawn('xdg-open', [server.url], { stdio: 'ignore', detached: true }).unref();
   await new Promise<void>((resolve) => process.once('SIGINT', resolve));

@@ -155,8 +155,7 @@ program
         const known = manifest.listSources().map((source) => source.id);
         manifest.close();
         throw new Error(
-          `say which sources to upload, e.g. \`pnpm vault upload ${known[0] ?? 'laptop:s21fe'}\`` +
-            (known.length ? ` (scanned: ${known.join(', ')})` : ''),
+          `say which sources to upload: \`pnpm vault upload ${known.length ? known.join(' ') : 'laptop:s21fe'}\``,
         );
       }
       const ids = sources.map(parseSourceId);
