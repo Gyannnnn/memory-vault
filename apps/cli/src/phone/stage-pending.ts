@@ -24,9 +24,9 @@ import {
 import { apiClient } from '../auth/credentials';
 import { config, manifestPath } from '../config';
 import { Manifest } from '../manifest/manifest';
-import { LiveView, progressLine, RateMeter } from '../ui/live';
+import { bar, LiveView, RateMeter } from '../ui/live';
 import { interruptSignal } from '../ui/pool';
-import { PHONE_ROOT, pickDevice, runAdb } from './adb';
+import { parseDevices, PHONE_ROOT, pickDevice, runAdb } from './adb';
 import { freeBytes, HEADROOM_BYTES, stagingRootFor } from './stage';
 
 const POLL_MS = 5000;
@@ -51,6 +51,24 @@ export function stagingOrder(items: PendingOriginal[]): PendingOriginal[] {
 export function fitsWindow(stagedBytes: number, nextBytes: number, windowBytes: number): boolean {
   return stagedBytes === 0 || stagedBytes + nextBytes <= windowBytes;
 }
+
+/**
+ * What an `adb pull` failure means. Only a missing file is a fact about that file; a phone
+ * that is unplugged, locked or not yet authorised says nothing about it, so the file is
+ * tried again once the phone is back.
+ */
+export function pullFailure(stderr: string): 'missing' | 'phone' | 'other' {
+  if (/no such file|does not exist/i.test(stderr)) return 'missing';
+  if (
+    /device '?[^' ]*'? not found|no devices\/emulators found|device offline|unauthori[sz]ed|failed to get feature set|device still (authorizing|connecting)|connection reset|protocol fault|closed/i.test(
+      stderr,
+    )
+  )
+    return 'phone';
+  return 'other';
+}
+
+class PhoneDisconnected extends Error {}
 
 /** Where a phone path is staged; null if the path would land outside the staging folder. */
 export function stagingPath(root: string, phonePath: string): string | null {
@@ -229,6 +247,10 @@ export async function stagePending(
   let lastProgressAt = Date.now();
   let current: string | null = null;
   let apiProblem: string | null = null;
+  let phoneGoneSince: number | null = null;
+  // Files the worker finishes per second (smoothed over minutes, since status arrives in batches).
+  const processedMeter = new RateMeter(120);
+  let processedSeen = 0;
 
   const view = new LiveView();
   const interrupt = interruptSignal(() =>
@@ -320,7 +342,9 @@ export async function stagePending(
         if (result.code !== 0) {
           removeCopy(root, target.file);
           const error = result.stderr.trim();
-          reasons.push(/no such file/i.test(error) ? 'not on the phone' : error || `adb exit ${result.code}`);
+          const kind = pullFailure(error);
+          if (kind === 'phone') throw new PhoneDisconnected(error);
+          reasons.push(kind === 'missing' ? 'not on the phone' : error || `adb exit ${result.code}`);
           continue;
         }
         if ((await sha256Of(target.file)) !== item.sha256) {
@@ -362,12 +386,40 @@ export async function stagePending(
     return true;
   };
 
+  const phoneConnected = async () => {
+    const result = await runAdb({ op: 'devices' }).catch(() => null);
+    return Boolean(
+      result &&
+      parseDevices(result.stdout).some((entry) => entry.serial === device.serial && entry.state === 'device'),
+    );
+  };
+
   const render = () => {
     const done = counts.processed + counts.alreadyProcessed;
+    processedMeter.add(done - processedSeen);
+    processedSeen = done;
+    const copyRate = meter.perSecond();
+    const perSecond = processedMeter.perSecond();
+    const left = items.length - done;
+    // The worker sets the pace: copying waits whenever the window is full.
+    const eta =
+      perSecond > 0.01 && meter.elapsedSeconds() > 30
+        ? `about ${formatDuration(left / perSecond)} left`
+        : null;
     const lines = [
-      progressLine('Copying  ', handledBytes, totalBytes, meter),
-      `Processed ${formatCount(done)} of ${formatCount(items.length)} · waiting in staging: ${formatCount(staged.size)} (${formatBytes(stagedBytes)})`,
+      `Copying   ${bar(totalBytes > 0 ? handledBytes / totalBytes : 1)} ${formatBytes(handledBytes)} / ${formatBytes(totalBytes)}${copyRate >= 1024 ? `  ${formatBytes(copyRate)}/s` : ''}`,
+      [
+        `Processed ${formatCount(done)} of ${formatCount(items.length)}`,
+        eta,
+        `waiting in staging: ${formatCount(staged.size)} (${formatBytes(stagedBytes)})`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
     ];
+    if (phoneGoneSince !== null)
+      lines.push(
+        'The phone is disconnected. Plug it back in (and unlock it if asked); nothing is skipped meanwhile.',
+      );
     const problems = missing.length + mismatched.length + unsafe.length + failed.length;
     if (problems > 0)
       lines.push(
@@ -392,8 +444,18 @@ export async function stagePending(
           apiProblem = error instanceof Error ? error.message : String(error);
         }
       }
+      if (phoneGoneSince !== null) {
+        if (await phoneConnected()) {
+          phoneGoneSince = null;
+        } else {
+          current = null;
+          render();
+          await sleep(2000, undefined, { signal }).catch(() => undefined);
+          continue;
+        }
+      }
       if (next < queue.length && fitsWindow(stagedBytes, queue[next]!.sizeBytes, options.windowBytes)) {
-        const item = queue[next++]!;
+        const item = queue[next]!;
         if (skip.has(item.assetId)) {
           counts.alreadyProcessed += 1;
           for (const path of item.paths) {
@@ -403,9 +465,18 @@ export async function stagePending(
               ledger.delete(file);
             }
           }
-        } else if (await stageOne(item)) {
-          meter.add(item.sizeBytes);
+        } else {
+          try {
+            if (await stageOne(item)) meter.add(item.sizeBytes);
+          } catch (error) {
+            if (!(error instanceof PhoneDisconnected)) throw error;
+            // Same file again once the phone is back.
+            phoneGoneSince = Date.now();
+            render();
+            continue;
+          }
         }
+        next += 1;
         handledBytes += item.sizeBytes;
       } else {
         current = null;

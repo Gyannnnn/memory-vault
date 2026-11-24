@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PendingOriginal } from '@memory-vault/shared';
-import { fitsWindow, stagingOrder, stagingPath } from './stage-pending';
+import { fitsWindow, pullFailure, stagingOrder, stagingPath } from './stage-pending';
 
 const item = (assetId: string, kind: PendingOriginal['kind'], localAt: string): PendingOriginal => ({
   assetId,
@@ -46,5 +46,22 @@ describe('stage-pending', () => {
     expect(stagingPath(root, '')).toBeNull();
     expect(stagingPath(root, '.')).toBeNull();
     expect(stagingPath(root, 'a\0b')).toBeNull();
+  });
+
+  it('tells a missing file apart from a phone that went away', () => {
+    expect(
+      pullFailure(
+        "adb: error: failed to stat remote object '/storage/emulated/0/DCIM/a.jpg': No such file or directory",
+      ),
+    ).toBe('missing');
+    // Unplugged mid-run (the message seen on 2026-11-24), and other "phone not ready" states.
+    expect(pullFailure("adb: error: failed to get feature set: device 'RZCX30G3QLK' not found")).toBe(
+      'phone',
+    );
+    expect(pullFailure('adb: no devices/emulators found')).toBe('phone');
+    expect(pullFailure('adb: device offline')).toBe('phone');
+    expect(pullFailure('adb: device unauthorized.')).toBe('phone');
+    expect(pullFailure('adb: error: closed')).toBe('phone');
+    expect(pullFailure('adb: error: cannot create file/directory: Permission denied')).toBe('other');
   });
 });
