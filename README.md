@@ -51,6 +51,7 @@ pnpm vault report --verify   # every file checked in S3; writes safe-to-delete l
 
 # Upkeep
 pnpm vault-admin integrity | backup | catalog | rebuild-index
+pnpm vault-admin load-places   # place names for photos with GPS (GeoNames, CC BY 4.0)
 pnpm test        # unit, integration and end-to-end tests (needs `docker compose --profile test up -d`)
 pnpm test:aws    # checks presigned checksums against the real bucket
 ```

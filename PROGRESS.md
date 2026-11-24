@@ -41,17 +41,19 @@ Status legend: `todo` · `in progress` · `done` · `blocked`
 
 Runs on localhost for now; media via short-lived presigned S3 URLs (CloudFront and a domain come with deployment). Plan agreed 2026-11-24: milestones M0 (foundation and security screens) → M1 (browse) → M2 (upload, video, downloads) → M3 (organise, share, protect) → M4 (people, OCR, trips) → M5 (account continuity) → M6 (stats, encrypted folders).
 
-| Milestone                                  | Status                   |
-| ------------------------------------------ | ------------------------ |
-| M0 Web foundation and security screens     | built, awaiting check-in |
-| M1 Browse                                  | todo                     |
-| M2 Upload, video, downloads, motion photos | todo                     |
-| M3 Organise, share and protect             | todo                     |
-| M4 People, OCR, trips                      | todo                     |
-| M5 Account continuity                      | todo                     |
-| M6 Stats, cost, encrypted folders          | todo                     |
+| Milestone                                  | Status                                 |
+| ------------------------------------------ | -------------------------------------- |
+| M0 Web foundation and security screens     | done (checked by the owner 2026-11-24) |
+| M1 Browse                                  | built, awaiting check-in               |
+| M2 Upload, video, downloads, motion photos | todo                                   |
+| M3 Organise, share and protect             | todo                                   |
+| M4 People, OCR, trips                      | todo                                   |
+| M5 Account continuity                      | todo                                   |
+| M6 Stats, cost, encrypted folders          | todo                                   |
 
 M0 delivered: `apps/web` (Next.js 16, Tailwind 4 with the shared design tokens, light/dark/system themes); sign-in with password + authenticator code, recovery code or passkey; tokens only in httpOnly cookies, renewed by `src/proxy.ts`; the app shell with every section in place; Settings › Security (passkeys and security keys: add, rename, remove; authenticator replacement and new recovery codes, both behind a fresh password + second-factor check; signed-in devices with sign out). Checked end to end in headless Chrome with a virtual authenticator against a throwaway API and test database.
+
+M1 delivered: the Photos timeline (months laid out before they load, small days packed side by side, a year/month scrubber that works with the keyboard), "On this day", the photo viewer (zoom, pan, swipe, arrow keys, deep links, and details: capture time and where it came from, place with a mini map, camera settings, file, original locations), folders mirrored from each source, a map of every photo with GPS (clusters, plus the photos in view), and search (word prefixes over file names, original folders, places and cameras; filters for type, year, place, camera and source). Place names come from GeoNames inside Postgres (`pnpm vault-admin load-places`; loaded 2026-11-24, all 8,545 files with GPS named). Database backed up to `reports/db-before-m1-2026-11-24.dump` before the migration.
 
 Core (from the brief): browse, timeline, map, search and filters, folders, zip download, upload with progress, video playback (HLS + Vidstack), sharing links, statistics, People (faces), passkey sign-in screens.
 

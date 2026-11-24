@@ -36,6 +36,15 @@
 
 - **Identity** (no row-level security, because sign-in must find users): `users`, `password_credentials`, `totp_credentials` (secret encrypted with AES-256-GCM), `recovery_codes` (argon2id), `passkeys`, `sessions` + `refresh_tokens` (single-use, reuse revokes the session), `audit_events`.
 - **Library** (row-level security on `user_id`): `assets` (one per unique content per user), `file_entries` (an asset placed in a folder; an asset can appear in many), `folders` (tree under a per-user root), `asset_origins` (every source path it was found at), `derivatives`, `upload_sessions`, `usage_snapshots`.
+- **Reference data** (no user data, read-only for the app role): `places`, GeoNames "cities1000" (CC BY 4.0), loaded with `pnpm vault-admin load-places`.
+
+## Browsing (Phase 2)
+
+- **Capture time.** `assets.local_at` is the wall-clock time a photo was taken (EXIF time with its offset, or the owner's time zone when that is all there is). A trigger keeps it current, so the timeline groups by the day the photo was actually taken wherever it was taken.
+- **Places.** The nearest GeoNames place within about 150 km of a photo's GPS position, found inside Postgres (pgvector nearest-neighbour on unit vectors). Coordinates are never sent to an online geocoder.
+- **Search.** `assets.search_tsv` holds the file name, place, every original path (so folder names like WhatsApp or Screenshots match), camera and kind. Triggers on `assets` and `asset_origins` keep it current. Queries match word prefixes ("kora" finds Koraput) plus a trigram match on file names; filters cover type, dates, place, camera, source and map area.
+- **Media links.** Thumbnails and originals are fetched straight from S3 with presigned GET links. They are signed against the start of the hour, so the same image keeps the same link for an hour and the browser cache works, and expire within three hours.
+- **Endpoints.** `GET /v1/timeline` (months with per-day counts, so the web app lays out the whole timeline before loading it), `/v1/timeline/{YYYY-MM}`, `/v1/assets` (search, keyset pages), `/v1/assets/{id}`, `/v1/search/facets`, `/v1/folders[/{id}]`, `/v1/map/points`, `/v1/memories/on-this-day`.
 
 ## Sign-in
 
