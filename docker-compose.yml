@@ -43,6 +43,59 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: memory-vault-api:local
+    profiles: [app]
+    command: ['pnpm', 'exec', 'tsx', 'src/server.ts']
+    restart: unless-stopped
+    env_file: apps/api/.env
+    environment: &app-environment
+      NODE_ENV: production
+      DATABASE_URL: postgresql://vault_app:${VAULT_APP_DB_PASSWORD}@postgres:5432/vault
+      DATABASE_MIGRATE_URL: postgresql://vault:${POSTGRES_PASSWORD}@postgres:5432/vault
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    ports:
+      - '127.0.0.1:${VAULT_API_PORT:-4000}:4000'
+    depends_on: &app-depends
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: memory-vault-api:local
+    profiles: [app]
+    restart: unless-stopped
+    env_file: apps/api/.env
+    environment:
+      <<: *app-environment
+      INGEST_CONCURRENCY: '2'
+    volumes:
+      - ${VAULT_LAPTOP_SOURCE_DIR:-./docker/empty}:/mnt/sources/laptop:ro
+      - ${VAULT_STAGING_DIR:-./docker/empty}:/mnt/sources/staging:ro
+    depends_on: *app-depends
+
+  ml:
+    build:
+      context: services/face-worker
+    image: memory-vault-ml:local
+    profiles: [app]
+    restart: unless-stopped
+    environment:
+      CLIP_REPO: Xenova/clip-vit-base-patch32
+      CLIP_REVISION: 6b7c523703ae26e39be4b03774966f8571c7f523
+      MODEL_DIR: /models
+      ALLOWED_ROOTS: /mnt/sources
+    ports:
+      - '127.0.0.1:${VAULT_ML_PORT:-8090}:8090'
+    volumes:
+      - models:/models
+      - ${VAULT_LAPTOP_SOURCE_DIR:-./docker/empty}:/mnt/sources/laptop:ro
+      - ${VAULT_STAGING_DIR:-./docker/empty}:/mnt/sources/staging:ro
+
   s3-test:
     image: versity/versitygw:v1.11.0
     profiles: [test]
@@ -61,3 +114,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  models:

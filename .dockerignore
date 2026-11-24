@@ -1,0 +1,16 @@
+**/node_modules
+**/.turbo
+**/dist
+**/coverage
+**/.next
+**/.expo
+**/src/generated
+.git
+**/.env
+**/.env.*
+!**/.env.example
+reports
+aws-urls.txt
+*.local.txt
+.claude
+CLAUDE*.md
