@@ -2,7 +2,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { bearer, createHarness, PASSWORD, signIn, signUp, type Harness } from '../../test/helpers';
 import { SoftAuthenticator } from '../../test/soft-authenticator';
-import { currentTotpCode } from './totp';
+import { currentTotpCode, verifyTotp } from './totp';
 
 let harness: Harness;
 
@@ -213,5 +213,98 @@ describe('passkeys', () => {
     expect(
       (await api().post('/v1/auth/passkeys/register/verify').set(bearer(user.accessToken)).send(body)).status,
     ).toBe(401);
+  });
+});
+
+describe('security settings (step-up required)', () => {
+  const nextStepCode = (secret: string) => currentTotpCode(secret, Date.now() + 30_000);
+
+  it('regenerates recovery codes only with the password and a second factor', async () => {
+    const user = await signUp(harness, 'a@example.com');
+    const wrong = await api()
+      .post('/v1/auth/recovery-codes')
+      .set(bearer(user.accessToken))
+      .send({ password: 'wrong password!!', code: nextStepCode(user.totpSecret) });
+    expect(wrong.status).toBe(401);
+
+    const viaRecovery = await api()
+      .post('/v1/auth/recovery-codes')
+      .set(bearer(user.accessToken))
+      .send({ password: PASSWORD, recoveryCode: user.recoveryCodes[0] });
+    expect(viaRecovery.status).toBe(200);
+    expect(viaRecovery.body.codes).toHaveLength(10);
+
+    const oldCode = await api()
+      .post('/v1/auth/login/recovery')
+      .send({ email: user.email, recoveryCode: user.recoveryCodes[1], deviceName: 'x' });
+    expect(oldCode.status).toBe(401);
+    const newCode = await api()
+      .post('/v1/auth/login/recovery')
+      .send({ email: user.email, recoveryCode: viaRecovery.body.codes[0], deviceName: 'x' });
+    expect(newCode.status).toBe(200);
+  });
+
+  it('replaces the authenticator only after a code from the new one is confirmed', async () => {
+    const user = await signUp(harness, 'a@example.com');
+    const started = await api()
+      .post('/v1/auth/totp/enroll')
+      .set(bearer(user.accessToken))
+      .send({ password: PASSWORD, recoveryCode: user.recoveryCodes[0] });
+    expect(started.status).toBe(200);
+    const newSecret = started.body.secret as string;
+    expect(started.body.uri).toContain('otpauth://totp/');
+
+    const bad = await api()
+      .post('/v1/auth/totp/confirm')
+      .set(bearer(user.accessToken))
+      .send({ code: '000000' });
+    expect(bad.status).toBe(400);
+    const confirmed = await api()
+      .post('/v1/auth/totp/confirm')
+      .set(bearer(user.accessToken))
+      .send({ code: currentTotpCode(newSecret) });
+    expect(confirmed.status).toBe(204);
+
+    const stored = await harness.ctx.db.totpCredential.findUniqueOrThrow({ where: { userId: user.userId } });
+    expect(
+      verifyTotp(newSecret, nextStepCode(newSecret), stored.lastUsedStep, Date.now() + 30_000),
+    ).not.toBeNull();
+    const password = await api()
+      .post('/v1/auth/login/password')
+      .send({ email: user.email, password: PASSWORD });
+    const oldApp = await api()
+      .post('/v1/auth/login/totp')
+      .send({ mfaToken: password.body.mfaToken, code: nextStepCode(user.totpSecret), deviceName: 'x' });
+    expect(oldApp.status).toBe(401);
+  });
+
+  it('renames a passkey only for its owner', async () => {
+    const user = await signUp(harness, 'a@example.com');
+    const other = await signUp(harness, 'b@example.com');
+    const authenticator = new SoftAuthenticator();
+    const options = await api().post('/v1/auth/passkeys/register/options').set(bearer(user.accessToken));
+    const created = await api()
+      .post('/v1/auth/passkeys/register/verify')
+      .set(bearer(user.accessToken))
+      .send({
+        challengeId: options.body.challengeId,
+        response: authenticator.register(options.body.options),
+        nickname: 'Key',
+      });
+    const id = created.body.id as string;
+    expect(
+      (await api().patch(`/v1/auth/passkeys/${id}`).set(bearer(other.accessToken)).send({ nickname: 'Mine' }))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await api()
+          .patch(`/v1/auth/passkeys/${id}`)
+          .set(bearer(user.accessToken))
+          .send({ nickname: 'YubiKey 5C' })
+      ).status,
+    ).toBe(204);
+    const list = await api().get('/v1/auth/passkeys').set(bearer(user.accessToken));
+    expect(list.body.passkeys[0].nickname).toBe('YubiKey 5C');
   });
 });

@@ -71,6 +71,22 @@ export const passkeyRegisterVerifyRequest = z.object({
   nickname: z.string().trim().min(1).max(60),
 });
 
+/** Proof of presence for sensitive changes: the password plus an authenticator code or an unused recovery code. */
+export const stepUpRequest = z
+  .object({
+    password: z.string().min(1).max(1024),
+    code: totpCodeSchema.optional(),
+    recoveryCode: z.string().trim().min(16).max(64).optional(),
+  })
+  .refine((value) => Boolean(value.code) !== Boolean(value.recoveryCode), {
+    message: 'Give either an authenticator code or a recovery code',
+  });
+
+export const totpEnrollResponse = z.object({ secret: z.string(), uri: z.string() });
+export const recoveryCodesResponse = z.object({ codes: z.array(z.string()).length(10) });
+export const passkeyRenameRequest = z.object({ nickname: z.string().trim().min(1).max(60) });
+
+export type StepUpRequest = z.infer<typeof stepUpRequest>;
 export type PasswordLoginRequest = z.infer<typeof passwordLoginRequest>;
 export type PasswordLoginResponse = z.infer<typeof passwordLoginResponse>;
 export type TotpLoginRequest = z.infer<typeof totpLoginRequest>;

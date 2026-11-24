@@ -3,9 +3,12 @@ import { z } from 'zod';
 import {
   passkeyLoginVerifyRequest,
   passkeyRegisterVerifyRequest,
+  passkeyRenameRequest,
   passwordLoginRequest,
   recoveryLoginRequest,
   refreshRequest,
+  stepUpRequest,
+  totpConfirmRequest,
   totpLoginRequest,
 } from '@memory-vault/shared';
 import type { AppContext } from '../context';
@@ -86,6 +89,30 @@ export function authRoutes(ctx: AppContext): Router {
       parse(z.uuid(), request.params.id),
       requestMeta(request),
     );
+    response.status(204).end();
+  });
+
+  router.patch('/passkeys/:id', signedIn, async (request, response) => {
+    const { nickname } = parse(passkeyRenameRequest, request.body);
+    await auth.renamePasskey(authOf(request).userId, parse(z.uuid(), request.params.id), nickname);
+    response.status(204).end();
+  });
+
+  router.post('/recovery-codes', signedIn, async (request, response) => {
+    const { userId } = authOf(request);
+    await auth.verifyStepUp(userId, parse(stepUpRequest, request.body), requestMeta(request));
+    response.json({ codes: await auth.generateRecoveryCodes(userId) });
+  });
+
+  router.post('/totp/enroll', signedIn, async (request, response) => {
+    const { userId } = authOf(request);
+    await auth.verifyStepUp(userId, parse(stepUpRequest, request.body), requestMeta(request));
+    response.json(await auth.beginTotpEnrollment(userId));
+  });
+
+  router.post('/totp/confirm', signedIn, async (request, response) => {
+    const { code } = parse(totpConfirmRequest, request.body);
+    await auth.finishTotpEnrollment(authOf(request).userId, code, requestMeta(request));
     response.status(204).end();
   });
 

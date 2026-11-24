@@ -543,6 +543,95 @@ export class AuthService {
     }));
   }
 
+  /** Re-checks the password and a second factor before a sensitive change. */
+  async verifyStepUp(
+    userId: string,
+    input: { password: string; code?: string | undefined; recoveryCode?: string | undefined },
+    meta: RequestMeta,
+  ): Promise<void> {
+    await consume(this.ctx.limits.mfaByUser, userId);
+    const user = await this.db.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { password: true, totp: true, recoveryCodes: { where: { usedAt: null } } },
+    });
+    const fail = async (step: string): Promise<never> => {
+      await audit(this.db, {
+        userId,
+        type: 'auth.login_failed',
+        meta,
+        metadata: { step: `step-up-${step}` },
+      });
+      throw unauthorized('Password or code is incorrect');
+    };
+    if (!user.password || !(await verifySecret(user.password.hash, input.password))) await fail('password');
+    if (input.code) {
+      if (!user.totp?.confirmedAt) await fail('totp');
+      const secret = decrypt(user.totp!.secretCiphertext, this.ctx.env.DATA_ENCRYPTION_KEY).toString();
+      const step = verifyTotp(secret, input.code, user.totp!.lastUsedStep);
+      if (step === null) await fail('totp');
+      const claimed = await this.db.totpCredential.updateMany({
+        where: { userId, OR: [{ lastUsedStep: null }, { lastUsedStep: { lt: step! } }] },
+        data: { lastUsedStep: step! },
+      });
+      if (claimed.count === 0) await fail('totp');
+    } else if (input.recoveryCode) {
+      const normalized = normalizeRecoveryCode(input.recoveryCode);
+      let matched: string | null = null;
+      for (const code of user.recoveryCodes) {
+        if (await verifySecret(code.hash, normalized)) {
+          matched = code.id;
+          break;
+        }
+      }
+      if (!matched) await fail('recovery');
+      await this.db.recoveryCode.update({ where: { id: matched! }, data: { usedAt: new Date() } });
+      await audit(this.db, {
+        userId,
+        type: 'auth.recovery_code_used',
+        meta,
+        metadata: { purpose: 'step-up' },
+      });
+    } else {
+      await fail('second-factor');
+    }
+    await reset(this.ctx.limits.mfaByUser, userId);
+  }
+
+  /** Starts replacing the authenticator; nothing changes until a code from the new one is confirmed. */
+  async beginTotpEnrollment(userId: string): Promise<{ secret: string; uri: string }> {
+    const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
+    const secret = newTotpSecret();
+    await this.ctx.redis.set(
+      `totp-pending:${userId}`,
+      encrypt(Buffer.from(secret), this.ctx.env.DATA_ENCRYPTION_KEY).toString('base64'),
+      'EX',
+      600,
+    );
+    return { secret, uri: totpUri(secret, user.email) };
+  }
+
+  async finishTotpEnrollment(userId: string, code: string, meta: RequestMeta): Promise<void> {
+    const sealed = await this.ctx.redis.get(`totp-pending:${userId}`);
+    if (!sealed) throw badRequest('The new authenticator setup expired. Start again.');
+    const secret = decrypt(Buffer.from(sealed, 'base64'), this.ctx.env.DATA_ENCRYPTION_KEY).toString();
+    const step = verifyTotp(secret, code, null);
+    if (step === null)
+      throw badRequest('That code is not valid. Check the time on your phone and try again.');
+    const secretCiphertext = Uint8Array.from(encrypt(Buffer.from(secret), this.ctx.env.DATA_ENCRYPTION_KEY));
+    await this.db.totpCredential.upsert({
+      where: { userId },
+      create: { userId, secretCiphertext, lastUsedStep: step, confirmedAt: new Date() },
+      update: { secretCiphertext, lastUsedStep: step, confirmedAt: new Date() },
+    });
+    await this.ctx.redis.del(`totp-pending:${userId}`);
+    await audit(this.db, { userId, type: 'auth.totp_enrolled', meta, metadata: { replaced: true } });
+  }
+
+  async renamePasskey(userId: string, passkeyId: string, nickname: string): Promise<void> {
+    const result = await this.db.passkey.updateMany({ where: { id: passkeyId, userId }, data: { nickname } });
+    if (result.count === 0) throw notFound('Passkey not found');
+  }
+
   async removePasskey(userId: string, passkeyId: string, meta: RequestMeta): Promise<void> {
     const result = await this.db.passkey.deleteMany({ where: { id: passkeyId, userId } });
     if (result.count === 0) throw notFound('Passkey not found');
