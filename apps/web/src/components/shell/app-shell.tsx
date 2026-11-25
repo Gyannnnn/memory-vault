@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { UploadButton, UploadPanel, UploadProgressPill } from '@/components/upload/upload-panel';
+import { UploadButton, UploadDialog, UploadTray } from '@/components/upload/upload-dialog';
 import { UploadProvider } from '@/components/upload/upload-provider';
 import { authStep } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -69,8 +69,8 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
           {children}
         </main>
       </div>
-      <UploadPanel />
-      <UploadProgressPill />
+      <UploadDialog />
+      <UploadTray />
     </UploadProvider>
   );
 }

@@ -1,3 +1,5 @@
+import { mimeTypeOf } from '@memory-vault/shared';
+
 /**
  * Uploads from the browser, through the same API as the CLI: every file is hashed (SHA-256)
  * first; content already in the vault only has its location recorded; new content goes
@@ -163,6 +165,14 @@ export class UploadManager {
     this.pump();
   }
 
+  /** Tries every failed file again. */
+  retryFailed(): void {
+    for (const entry of this.entries)
+      if (entry.item.status === 'failed') entry.item = { ...entry.item, status: 'queued', error: undefined };
+    this.changed();
+    this.pump();
+  }
+
   /** Forgets finished files (done, already in the vault); failed ones stay to be retried. */
   clearFinished(): void {
     for (let index = this.entries.length - 1; index >= 0; index -= 1) {
@@ -236,7 +246,7 @@ export class UploadManager {
       body: {
         sha256,
         size: file.size,
-        mimeType: file.type || 'application/octet-stream',
+        mimeType: file.type || mimeTypeOf(entry.item.path),
         origin: {
           sourceId: this.options.sourceId,
           path: entry.item.path,

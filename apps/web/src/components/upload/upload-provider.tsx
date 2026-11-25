@@ -20,6 +20,8 @@ import { UploadManager, type UploadSnapshot } from '@/lib/upload/engine';
 interface Uploads {
   manager: UploadManager;
   snapshot: UploadSnapshot;
+  /** Files are being dragged over the window. */
+  dragging: boolean;
   open: boolean;
   setOpen: (open: boolean) => void;
   add: (chosen: Chosen[]) => void;
@@ -125,11 +127,15 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     };
   }, [add]);
 
-  const value = useMemo(() => ({ manager, snapshot, open, setOpen, add }), [manager, snapshot, open, add]);
+  const value = useMemo(
+    () => ({ manager, snapshot, dragging, open, setOpen, add }),
+    [manager, snapshot, dragging, open, add],
+  );
   return (
     <UploadContext.Provider value={value}>
       {children}
-      {dragging && (
+      {/* With the dialog open, its drop zone lights up instead. */}
+      {dragging && !open && (
         <div
           aria-hidden="true"
           className="pointer-events-none fixed inset-3 z-50 grid place-items-center rounded-xl border-2 border-dashed border-focus bg-selection backdrop-blur-[2px]"
