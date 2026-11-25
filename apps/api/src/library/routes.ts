@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   assetSearchQuery,
   onThisDayQuery,
+  exportPageQuery,
   pendingOriginalsQuery,
   processingStatusRequest,
   recordOriginsRequest,
@@ -14,6 +15,7 @@ import { authOf } from '../http/auth-middleware';
 import { notFound, parse } from '../http/errors';
 import { UploadService } from '../uploads/service';
 import { BrowseService } from './browse';
+import { ExportService } from './export';
 import { ProcessingService } from './processing';
 import { PLAYLIST_TYPE, StreamService } from './streams';
 
@@ -28,6 +30,7 @@ export function libraryRoutes(ctx: AppContext): Router {
   const browse = new BrowseService(ctx);
   const processing = new ProcessingService(ctx);
   const streams = new StreamService(ctx);
+  const exports = new ExportService(ctx);
 
   router.post('/assets/origins', async (request, response) => {
     const { items } = parse(recordOriginsRequest, request.body);
@@ -87,6 +90,11 @@ export function libraryRoutes(ctx: AppContext): Router {
   router.get('/memories/on-this-day', async (request, response) => {
     const { date } = parse(onThisDayQuery, request.query);
     response.json(await browse.onThisDay(authOf(request).userId, date));
+  });
+
+  router.get('/export', async (request, response) => {
+    const { cursor, limit } = parse(exportPageQuery, request.query);
+    response.json(await exports.page(authOf(request).userId, cursor, limit));
   });
 
   router.get('/processing/pending', async (request, response) => {

@@ -16,6 +16,7 @@ import { runUpload } from './upload/engine';
 import { review } from './review/command';
 import { classify } from './review/classify';
 import { buildReconciliation, printReconciliation, writeReconciliation } from './report/reconcile';
+import { runExport } from './export/export';
 
 function parseSourceId(value: string): SourceId {
   const parsed = sourceIdSchema.safeParse(value);
@@ -208,6 +209,29 @@ program
     } finally {
       manifest.close();
     }
+  });
+
+program
+  .command('export')
+  .description(
+    'Copy every original out of the vault into a folder, in the folders it came from, each checked against its SHA-256',
+  )
+  .argument('<folder>', 'where to put the export (run again to resume or to add new files)')
+  .option('--verify', 're-check files already in the folder against their SHA-256 too')
+  .option(
+    '--concurrency <count>',
+    'downloads at once',
+    (value) => {
+      const count = Number(value);
+      if (!Number.isInteger(count) || count < 1 || count > 16)
+        throw new InvalidArgumentError('expected 1 to 16');
+      return count;
+    },
+    3,
+  )
+  .action(async (folder: string, options: { verify?: boolean; concurrency: number }) => {
+    const result = await runExport(folder, apiClient(), options);
+    if (result.failures.length > 0) process.exitCode = 2;
   });
 
 program

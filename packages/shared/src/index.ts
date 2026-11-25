@@ -9,4 +9,5 @@ export * from './api/uploads';
 export * from './api/library';
 export * from './api/processing';
 export * from './api/downloads';
+export * from './api/export';
 export * from './time';

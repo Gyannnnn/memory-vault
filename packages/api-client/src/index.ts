@@ -5,6 +5,7 @@ import {
   createUploadResponse,
   listPartsResponse,
   passwordLoginResponse,
+  exportPageResponse,
   pendingOriginalsResponse,
   presignPartsResponse,
   processingStatusResponse,
@@ -219,6 +220,17 @@ export function createApiClient(options: ApiClientOptions) {
       if (query.cursor) params.set('cursor', query.cursor);
       if (query.limit) params.set('limit', String(query.limit));
       return authed('GET', `/v1/processing/pending?${params.toString()}`, pendingOriginalsResponse);
+    },
+    /** The whole library, a page at a time, with a download link for each original. */
+    exportPage(cursor?: string, limit = 200) {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (cursor) params.set('cursor', cursor);
+      return authed('GET', `/v1/export?${params.toString()}`, exportPageResponse);
+    },
+    /** A fresh download link for one original (links in an export page expire after a few hours). */
+    async downloadUrl(assetId: string): Promise<string> {
+      const detail = (await authed('GET', `/v1/assets/${assetId}`, null)) as { downloadUrl: string };
+      return detail.downloadUrl;
     },
     processingStatus(ids: string[], work: PendingWork = 'processing') {
       return authed('POST', '/v1/processing/status', processingStatusResponse, { ids, for: work });
