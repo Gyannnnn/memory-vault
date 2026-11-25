@@ -28,7 +28,10 @@ export function Providers({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={400}>
           {children}
-          <Toaster position="bottom-right" />
+          <Toaster
+            position="bottom-right"
+            mobileOffset={{ bottom: 'calc(4.75rem + env(safe-area-inset-bottom))' }}
+          />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

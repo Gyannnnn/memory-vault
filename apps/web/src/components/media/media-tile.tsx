@@ -142,7 +142,7 @@ export const MediaTile = memo(function MediaTile({
           <Placeholder tile={tile} />
         )}
         {tile.kind === 'video' && (
-          <span className="pointer-events-none absolute right-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-sm bg-scrim px-1.5 py-0.5 text-[11px] font-medium text-ink-inverse tabular-nums dark:text-ink">
+          <span className="pointer-events-none absolute right-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-sm bg-scrim px-1.5 py-0.5 text-xs font-medium text-ink-inverse tabular-nums dark:text-ink">
             <Play className="size-3 fill-current" aria-hidden="true" />
             {tile.durationMs ? formatClock(tile.durationMs) : null}
           </span>

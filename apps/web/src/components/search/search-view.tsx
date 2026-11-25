@@ -359,7 +359,7 @@ export function SearchView() {
             <span className="mx-auto grid size-12 place-items-center rounded-full bg-surface-sunken text-ink-muted ring-1 ring-border">
               <SearchX className="size-5" aria-hidden="true" />
             </span>
-            <p className="mt-5 font-semibold">
+            <p className="mt-5 font-medium">
               {filters.q ? `Nothing matches “${filters.q}”` : 'Nothing matches these filters'}
             </p>
             <p className="mt-1.5 text-sm text-ink-muted">

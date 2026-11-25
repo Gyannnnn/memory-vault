@@ -2,13 +2,15 @@
 
 import type { AssetTile } from '@memory-vault/shared';
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { ImageOff } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { GalleryLayout, GallerySection } from '@/components/media/gallery-layout';
 import { VirtualGallery } from '@/components/media/virtual-gallery';
 import { SelectionProvider } from '@/components/selection/selection';
 import { SelectionBar } from '@/components/selection/selection-bar';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useUploads } from '@/components/upload/upload-provider';
 import { PhotoViewer } from '@/components/viewer/photo-viewer';
 import { usePhotoParam } from '@/components/viewer/use-photo-param';
 import { formatMonth } from '@/lib/format';
@@ -26,6 +28,7 @@ export function PhotosTimeline() {
   const [requested, setRequested] = useState<string[]>([]);
   const [scrubber, setScrubber] = useState<{ layout: GalleryLayout; scrollMargin: number } | null>(null);
   const viewer = usePhotoParam();
+  const uploads = useUploads();
   const [viewerMonth, setViewerMonth] = useState<string | null>(null);
 
   // The newest months load straight away; the rest as they come near the screen.
@@ -141,17 +144,12 @@ export function PhotosTimeline() {
   }
   if (buckets.length === 0) {
     return (
-      <div className="grid place-items-center px-4 py-24 text-center sm:px-8">
-        <div className="max-w-sm">
-          <span className="mx-auto grid size-12 place-items-center rounded-full bg-surface-sunken text-ink-muted ring-1 ring-border">
-            <ImageOff className="size-5" aria-hidden="true" />
-          </span>
-          <h2 className="mt-5 text-base font-semibold">No photos yet</h2>
-          <p className="mt-1.5 text-sm text-ink-muted">
-            Upload a folder with <code className="font-mono text-xs">pnpm vault upload</code>. Uploading from
-            the browser comes in the next milestone.
-          </p>
-        </div>
+      <div className="px-4 py-24 text-center sm:px-8">
+        <h2 className="text-lg font-medium">No photos yet</h2>
+        <p className="mt-1.5 text-sm text-ink-muted">Photos and videos you upload appear here by date.</p>
+        <Button className="mt-6" onClick={() => uploads.setOpen(true)}>
+          <Upload aria-hidden="true" /> Upload photos
+        </Button>
       </div>
     );
   }

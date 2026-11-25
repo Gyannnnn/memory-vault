@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { SUSE } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Providers } from '@/components/providers';
 import './globals.css';
 
 // Downloaded once at build time and served from this app; pages never call Google.
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+const sans = SUSE({ subsets: ['latin'], variable: '--font-sans-face', display: 'swap' });
 
 export const metadata: Metadata = {
   title: { default: 'Memory Vault', template: '%s · Memory Vault' },
@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={sans.variable} suppressHydrationWarning>
       <body className="min-h-dvh">
         <Providers>{children}</Providers>
       </body>

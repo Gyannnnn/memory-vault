@@ -144,7 +144,7 @@ export function VirtualGallery({
             case 'section':
               return (
                 <div key={item.key} style={style} className="flex items-end pb-3">
-                  <h2 className="text-lg font-semibold tracking-tight">{block.title}</h2>
+                  <h2 className="text-lg font-medium tracking-tight">{block.title}</h2>
                 </div>
               );
             case 'day':
@@ -174,7 +174,10 @@ export function VirtualGallery({
                 <div key={item.key} style={style}>
                   {block.segments.map((segment) => (
                     <div key={segment.day} className="absolute top-0 h-full" style={{ left: segment.left }}>
-                      <h3 className="flex h-8 items-center text-sm font-medium whitespace-nowrap text-ink-muted sm:h-10">
+                      <h3
+                        className="flex items-center text-sm font-medium whitespace-nowrap text-ink-muted"
+                        style={{ height: block.labelHeight }}
+                      >
                         {formatDay(segment.day)}
                       </h3>
                       <div className="relative" style={{ height: block.tileHeight }}>

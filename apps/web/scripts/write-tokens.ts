@@ -31,7 +31,14 @@ const theme = [
   '@theme {',
   '  --color-*: initial;',
   ...Object.entries(tokens.color.light).map(([role, value]) => `  --color-${kebab(role)}: ${value};`),
-  `  --font-sans: var(--font-inter), ${quoteFont(tokens.font.sans)};`,
+  `  --font-sans: var(--font-sans-face), ${quoteFont(tokens.font.sans)};`,
+  // Tailwind's text sizes, replaced by ours (no 12 px text anywhere).
+  '  --text-*: initial;',
+  ...Object.entries(tokens.fontSize).flatMap(([key, size]) => [
+    `  --text-${key}: ${size / 16}rem;`,
+    `  --text-${key}--line-height: ${tokens.fontLeading[key as keyof typeof tokens.fontLeading] / size};`,
+  ]),
+  `  --tracking-display: ${tokens.letterSpacing.display};`,
   `  --font-mono: ${quoteFont(tokens.font.mono)};`,
   ...Object.entries(tokens.radius).map(([key, value]) => `  --radius-${key}: ${value}px;`),
   ...Object.entries(tokens.shadow).map(([key, value]) => `  --shadow-${key}: ${value};`),

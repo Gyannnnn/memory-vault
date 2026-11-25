@@ -14,8 +14,10 @@
     background: var(--color-background);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-feature-settings: 'cv11', 'ss01';
+    font-size: var(--text-md);
+    line-height: var(--text-md--line-height);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   :focus-visible {
@@ -33,4 +35,38 @@
   --media-font-family: var(--font-sans);
   --media-focus-ring: 0 0 0 3px var(--color-focus);
   --video-border-radius: var(--radius-md);
+}
+
+/*
+ * Buttons answer the pointer (taste's hover layer): filled and outlined ones step up 1px on
+ * hover, every button sinks 1px and to 98.5% on press. Fine pointers only; under reduced
+ * motion only colours change.
+ */
+[data-slot='button'] {
+  transition-property: transform, background-color, border-color, color;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-slot='button']:is(
+      [data-variant='default'],
+      [data-variant='outline'],
+      [data-variant='secondary'],
+      [data-variant='destructive']
+    ):not(:disabled):hover {
+    transform: translateY(-1px);
+    transition-duration: var(--duration-hover);
+  }
+}
+[data-slot='button']:not(:disabled):active {
+  transform: translateY(1px) scale(0.985);
+  transition-duration: var(--duration-press);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot='button'] {
+    transition-property: background-color, border-color, color;
+  }
+  [data-slot='button']:not(:disabled):is(:hover, :active) {
+    transform: none;
+  }
 }

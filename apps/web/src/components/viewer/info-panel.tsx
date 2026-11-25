@@ -81,7 +81,7 @@ export function InfoPanel({
       className="flex max-h-[60dvh] w-full shrink-0 flex-col overflow-y-auto border-t bg-surface md:max-h-none md:w-[360px] md:border-t-0 md:border-l"
     >
       <div className="sticky top-0 z-10 flex h-14 items-center justify-between bg-surface px-4">
-        <h2 className="text-sm font-semibold">Details</h2>
+        <h2 className="text-sm font-medium">Details</h2>
         <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close details">
           <X />
         </Button>
@@ -129,7 +129,7 @@ export function InfoPanel({
               <div className="mt-3 h-40 overflow-hidden rounded-md ring-1 ring-border">
                 <MiniMap latitude={detail.location.latitude} longitude={detail.location.longitude} dark />
               </div>
-              <p className="mt-1 text-[11px] text-ink-subtle">
+              <p className="mt-1 text-xs text-ink-subtle">
                 Map © OpenMapTiles © OpenStreetMap contributors, via OpenFreeMap
               </p>
               <Link
@@ -205,7 +205,7 @@ export function InfoPanel({
           </Section>
 
           {detail.location?.place && (
-            <p className="pt-4 text-[11px] text-ink-subtle">Place names from GeoNames (CC BY 4.0).</p>
+            <p className="pt-4 text-xs text-ink-subtle">Place names from GeoNames (CC BY 4.0).</p>
           )}
         </div>
       )}

@@ -21,7 +21,7 @@ export function Section({
       className="grid gap-6 border-b px-4 py-8 sm:px-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-12"
     >
       <div>
-        <h2 id={headingId} className="text-[15px] font-semibold">
+        <h2 id={headingId} className="text-md font-medium">
           {title}
         </h2>
         <p className="mt-1 text-sm text-ink-muted">{description}</p>

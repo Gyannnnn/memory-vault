@@ -9,7 +9,7 @@ export default function AlbumsPage() {
     <ComingSoon
       title="Albums"
       icon={BookImage}
-      summary="Albums and favourites, plus trip albums made automatically from your travels."
+      summary="Albums, favourites, and trip albums made from where your photos were taken."
       milestone="M3"
     />
   );

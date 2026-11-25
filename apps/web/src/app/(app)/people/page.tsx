@@ -9,7 +9,7 @@ export default function PeoplePage() {
     <ComingSoon
       title="People"
       icon={Users}
-      summary="Faces grouped into people, recognised on this computer only. Name someone once and find them everywhere."
+      summary="Faces grouped into people, recognised on this computer only."
       milestone="M4"
     />
   );

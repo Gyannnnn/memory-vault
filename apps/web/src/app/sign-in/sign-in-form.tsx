@@ -91,7 +91,7 @@ export function SignInForm({ next }: { next: string }) {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="text-2xl font-medium tracking-display">
         {step === 'password' ? 'Sign in' : step === 'totp' ? 'Enter your code' : 'Use a recovery code'}
       </h1>
       <p className="mt-1.5 text-sm text-ink-muted">

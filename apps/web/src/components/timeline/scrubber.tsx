@@ -151,7 +151,7 @@ export function TimelineScrubber({ layout, scrollMargin }: Props) {
       onPointerLeave={() => !dragging && setHover(null)}
       onKeyDown={onKeyDown}
       className={cn(
-        'group/scrubber fixed top-16 right-0 bottom-4 z-20 w-11 cursor-ns-resize touch-none select-none outline-none sm:w-14 lg:top-4',
+        'group/scrubber fixed top-16 right-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 w-11 cursor-ns-resize touch-none select-none outline-none sm:w-14 md:top-4 md:bottom-4',
         'focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset',
       )}
     >
@@ -159,7 +159,7 @@ export function TimelineScrubber({ layout, scrollMargin }: Props) {
         <span
           key={year}
           aria-hidden="true"
-          className="absolute right-4 -translate-y-1/2 text-[11px] font-medium text-ink-subtle tabular-nums sm:right-5"
+          className="absolute right-4 -translate-y-1/2 text-xs font-medium text-ink-subtle tabular-nums sm:right-5"
           style={{ top: y }}
         >
           {year}
@@ -168,9 +168,9 @@ export function TimelineScrubber({ layout, scrollMargin }: Props) {
       <span
         aria-hidden="true"
         className={cn(
-          'absolute right-1 w-1 rounded-full bg-ink-subtle transition-[width,background-color] duration-(--duration-fast)',
-          'group-hover/scrubber:w-1.5 group-hover/scrubber:bg-ink',
-          dragging && 'w-1.5 bg-ink',
+          'absolute right-1 w-1 origin-right rounded-full bg-ink-subtle transition-[transform,background-color] duration-(--duration-fast)',
+          'group-hover/scrubber:scale-x-150 group-hover/scrubber:bg-ink',
+          dragging && 'scale-x-150 bg-ink',
         )}
         style={{ top: indicatorY, height: thumbHeight }}
       />

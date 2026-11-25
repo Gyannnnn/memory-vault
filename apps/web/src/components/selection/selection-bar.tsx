@@ -44,7 +44,7 @@ export function SelectionBar() {
     <div
       role="toolbar"
       aria-label="Selected items"
-      className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-md items-center gap-1 rounded-full border bg-surface-raised p-1.5 shadow-lg"
+      className="fixed inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 md:bottom-4 md:left-[calc(var(--sidebar)+1rem)] mx-auto flex max-w-md items-center gap-1 rounded-full border bg-surface-raised p-1.5 shadow-lg"
     >
       <Button variant="ghost" size="icon" onClick={selection.clear} aria-label="Clear selection (Esc)">
         <X />

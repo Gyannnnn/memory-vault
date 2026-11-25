@@ -6,8 +6,6 @@ import {
   AlertCircle,
   Check,
   ChevronUp,
-  CloudUpload,
-  Copy,
   File as FileIcon,
   FileAudio,
   FileImage,
@@ -40,7 +38,7 @@ const FILTERS: { key: Filter; label: string; statuses: UploadStatus[] }[] = [
   { key: 'failed', label: 'Failed', statuses: ['failed'] },
 ];
 
-const ROW_HEIGHT = 60;
+const ROW_HEIGHT = 56;
 
 /** Overall state in a few words, for the dialog and the minimised card. */
 export function headline(snapshot: UploadSnapshot): string {
@@ -97,27 +95,20 @@ function KindIcon({ path }: { path: string }) {
           : kind === 'document'
             ? FileText
             : FileIcon;
-  return (
-    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-sunken text-ink-muted ring-1 ring-border">
-      <Icon className="size-4" aria-hidden="true" />
-    </span>
-  );
+  return <Icon className="size-5 shrink-0 text-ink-subtle" strokeWidth={1.6} aria-hidden="true" />;
 }
 
 function Status({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
+  const text = 'text-xs tabular-nums';
   switch (item.status) {
     case 'done':
       return (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-keep">
-          <Check className="size-3.5" aria-hidden="true" /> Uploaded
+        <span className={cn(text, 'inline-flex items-center gap-1 text-ink-muted')}>
+          <Check className="size-3.5 text-keep" aria-hidden="true" /> Uploaded
         </span>
       );
     case 'duplicate':
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-ink-muted">
-          <Copy className="size-3" aria-hidden="true" /> Already in vault
-        </span>
-      );
+      return <span className={cn(text, 'text-ink-muted')}>Already in vault</span>;
     case 'failed':
       return (
         <Button size="sm" variant="outline" onClick={onRetry}>
@@ -126,23 +117,23 @@ function Status({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
       );
     case 'uploading':
       return (
-        <span className="text-xs text-ink-muted tabular-nums">
+        <span className={cn(text, 'text-ink')}>
           {item.size ? Math.floor((item.sent / item.size) * 100) : 100}%
         </span>
       );
     case 'hashing':
-      return <span className="text-xs text-ink-muted">Checking</span>;
+      return <span className={cn(text, 'text-ink-muted')}>Checking</span>;
     case 'paused':
-      return <span className="text-xs text-ink-muted">Paused</span>;
+      return <span className={cn(text, 'text-ink-muted')}>Paused</span>;
     case 'queued':
-      return <span className="text-xs text-ink-subtle">Waiting</span>;
+      return <span className={cn(text, 'text-ink-subtle')}>Waiting</span>;
   }
 }
 
 function Row({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
   const slash = item.path.lastIndexOf('/');
   const folder = slash > 0 ? item.path.slice(0, slash) : null;
-  const moving = item.status === 'uploading' || item.status === 'hashing';
+  const showsBar = item.status === 'uploading' || item.status === 'hashing' || item.status === 'paused';
   const fraction = !item.size
     ? 1
     : item.status === 'hashing'
@@ -151,36 +142,30 @@ function Row({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
         ? item.sent / item.size
         : 0;
   return (
-    <div className="flex h-full items-center gap-3 px-6">
+    <div className="flex h-full items-center gap-3.5 px-6">
       <KindIcon path={item.path} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium" title={item.path}>
+        <p className="truncate text-md text-ink" title={item.path}>
           {item.name}
         </p>
         {item.status === 'failed' ? (
           <p className="truncate text-xs text-skip" title={item.error}>
             {item.error ?? 'Failed'}
           </p>
-        ) : moving || item.status === 'paused' ? (
-          <div className="mt-1.5 flex items-center gap-2">
-            <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-sunken" aria-hidden="true">
-              <div
-                className={cn(
-                  'h-full rounded-full transition-[width] duration-(--duration-base)',
-                  item.status === 'hashing' ? 'bg-ink-subtle' : 'bg-focus',
-                )}
-                style={{ width: `${fraction * 100}%` }}
-              />
-            </div>
-            <span className="shrink-0 text-xs text-ink-subtle tabular-nums">{formatBytes(item.size)}</span>
+        ) : showsBar ? (
+          <div className="mt-2 h-0.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
+            <div
+              className={cn('h-full', item.status === 'uploading' ? 'bg-ink' : 'bg-ink-subtle')}
+              style={{ width: `${fraction * 100}%` }}
+            />
           </div>
         ) : (
-          <p className="truncate text-xs text-ink-subtle">
+          <p className="truncate text-xs text-ink-muted">
             {[folder, formatBytes(item.size)].filter(Boolean).join(' · ')}
           </p>
         )}
       </div>
-      <div className="flex shrink-0 justify-end sm:w-32">
+      <div className="flex shrink-0 justify-end sm:min-w-24">
         <Status item={item} onRetry={onRetry} />
       </div>
     </div>
@@ -205,7 +190,7 @@ function FileList({ items, onRetry }: { items: readonly UploadItem[]; onRetry: (
             <div
               key={item.id}
               role="listitem"
-              className="absolute inset-x-0 border-b border-border/60"
+              className="absolute inset-x-0"
               style={{ height: ROW_HEIGHT, transform: `translateY(${row.start}px)` }}
             >
               <Row item={item} onRetry={() => onRetry(item.id)} />
@@ -217,79 +202,7 @@ function FileList({ items, onRetry }: { items: readonly UploadItem[]; onRetry: (
   );
 }
 
-function DropZone({
-  compact,
-  dragging,
-  onFiles,
-  onFolder,
-}: {
-  compact: boolean;
-  dragging: boolean;
-  onFiles: () => void;
-  onFolder: () => void;
-}) {
-  const frame = cn(
-    'rounded-xl border-2 border-dashed transition-colors duration-(--duration-fast)',
-    dragging ? 'border-focus bg-selection' : 'border-border-strong bg-surface-sunken/40',
-  );
-  if (compact) {
-    return (
-      <div className={cn(frame, 'flex flex-wrap items-center gap-3 px-4 py-3')}>
-        <CloudUpload
-          className={cn('size-5 shrink-0', dragging ? 'text-focus' : 'text-ink-subtle')}
-          aria-hidden="true"
-        />
-        <p className="min-w-0 flex-1 text-sm text-ink-muted">
-          {dragging ? (
-            'Drop to add them'
-          ) : (
-            <>
-              <span className="sm:hidden">Add more</span>
-              <span className="max-sm:hidden">Drop more files or folders here, or</span>
-            </>
-          )}
-        </p>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={onFiles}>
-            <Upload aria-hidden="true" /> Files
-          </Button>
-          <Button size="sm" variant="outline" onClick={onFolder}>
-            <FolderUp aria-hidden="true" /> Folder
-          </Button>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className={cn(frame, 'flex flex-col items-center px-6 py-10 text-center sm:py-12')}>
-      <span
-        className={cn(
-          'grid size-14 place-items-center rounded-full ring-1 transition-colors duration-(--duration-fast)',
-          dragging ? 'bg-focus text-white ring-focus' : 'bg-surface-raised text-ink-muted ring-border',
-        )}
-      >
-        <CloudUpload className="size-6" aria-hidden="true" />
-      </span>
-      <p className="mt-4 text-base font-semibold">
-        {dragging ? 'Drop to upload' : 'Drag photos and videos here'}
-      </p>
-      <p className="mt-1 max-w-sm text-sm text-ink-muted">
-        Or choose them. Whole folders keep their structure, and files already in your vault aren’t uploaded
-        again.
-      </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-2">
-        <Button onClick={onFiles}>
-          <Upload aria-hidden="true" /> Choose files
-        </Button>
-        <Button variant="outline" onClick={onFolder}>
-          <FolderUp aria-hidden="true" /> Choose a folder
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** The upload window: centred, with everything about the current uploads in one place. */
+/** The upload window: centred, everything about the current uploads in one place. */
 export function UploadDialog() {
   const { manager, snapshot, dragging, open, setOpen, add } = useUploads();
   const filesInput = useRef<HTMLInputElement>(null);
@@ -326,12 +239,13 @@ export function UploadDialog() {
     return items.sort((a, b) => rank[a.status] - rank[b.status]);
   }, [snapshot.items, active]);
 
-  const choose = (input: HTMLInputElement | null) => input?.click();
+  const chooseFiles = () => filesInput.current?.click();
+  const chooseFolder = () => folderInput.current?.click();
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/70 backdrop-blur-[1px]" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/60" />
         <DialogPrimitive.Content
           // Focus the window itself, not its first button: no tooltip pops up and Esc closes at once.
           tabIndex={-1}
@@ -341,61 +255,57 @@ export function UploadDialog() {
           }}
           className={cn(
             'fixed top-1/2 left-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden',
-            'w-[min(680px,calc(100vw-1.5rem))] rounded-xl border bg-surface-raised shadow-2xl outline-none',
-            hasItems ? 'h-[min(720px,calc(100dvh-1.5rem))]' : 'max-h-[calc(100dvh-1.5rem)]',
+            'w-[min(640px,calc(100vw-1.5rem))] rounded-xl border bg-surface-raised shadow-lg outline-none',
+            hasItems ? 'h-[min(680px,calc(100dvh-1.5rem))]' : 'max-h-[calc(100dvh-1.5rem)]',
           )}
         >
-          <header className="flex items-start gap-4 border-b px-6 pt-5 pb-4">
-            <div className="min-w-0 flex-1">
-              <DialogPrimitive.Title className="text-lg font-semibold tracking-tight">
-                Upload
-              </DialogPrimitive.Title>
-              <DialogPrimitive.Description className="mt-0.5 text-sm text-ink-muted">
-                Photos, videos and other files go straight into your vault, each checked as it arrives.
-              </DialogPrimitive.Description>
-            </div>
+          <header className="flex h-14 shrink-0 items-center justify-between border-b pr-3 pl-6">
+            <DialogPrimitive.Title className="text-base font-medium">Upload</DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">
+              Add photos, videos or whole folders to your vault
+            </DialogPrimitive.Description>
             <Tooltip>
               <TooltipTrigger asChild>
                 <DialogPrimitive.Close asChild>
-                  <Button variant="ghost" size="icon" aria-label="Close (Esc)" className="-mr-2">
+                  <Button variant="ghost" size="icon-sm" aria-label="Close">
                     <X />
                   </Button>
                 </DialogPrimitive.Close>
               </TooltipTrigger>
-              <TooltipContent>{pending > 0 ? 'Close (uploads continue)' : 'Close'}</TooltipContent>
+              <TooltipContent>{pending > 0 ? 'Close; uploads continue' : 'Close'}</TooltipContent>
             </Tooltip>
           </header>
 
-          <div className="space-y-4 px-6 pt-5 pb-4">
-            <DropZone
-              compact={hasItems}
-              dragging={dragging}
-              onFiles={() => choose(filesInput.current)}
-              onFolder={() => choose(folderInput.current)}
-            />
-
-            {hasItems && (
-              <section aria-labelledby={progressId} className="rounded-lg border bg-surface p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p id={progressId} className="font-semibold" aria-live="polite">
-                      {headline(snapshot)}
-                    </p>
-                    <p className="mt-0.5 text-sm text-ink-muted tabular-nums">{detail(snapshot)}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <span className="text-2xl font-semibold tabular-nums">{percent}%</span>
-                    {pending > 0 &&
-                      (snapshot.paused ? (
-                        <Button variant="outline" onClick={() => manager.resume()}>
-                          <Play aria-hidden="true" /> Resume
-                        </Button>
-                      ) : (
-                        <Button variant="outline" onClick={() => manager.pause()}>
-                          <Pause aria-hidden="true" /> Pause
-                        </Button>
-                      ))}
-                  </div>
+          {!hasItems ? (
+            <div className="p-6">
+              <div
+                className={cn(
+                  'flex flex-col items-center rounded-lg border border-dashed px-6 py-14 text-center transition-colors duration-(--duration-fast)',
+                  dragging ? 'border-focus bg-selection' : 'border-border-strong',
+                )}
+              >
+                <p className="text-base font-medium">
+                  {dragging ? 'Drop to upload' : 'Drop photos, videos or folders here'}
+                </p>
+                <p className="mt-1.5 text-sm text-ink-muted">Files already in your vault are skipped.</p>
+                <div className="mt-6 flex flex-wrap justify-center gap-2">
+                  <Button onClick={chooseFiles}>
+                    <Upload aria-hidden="true" /> Choose files
+                  </Button>
+                  <Button variant="outline" onClick={chooseFolder}>
+                    <FolderUp aria-hidden="true" /> Choose folder
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <section aria-labelledby={progressId} className="shrink-0 px-6 pt-5 pb-4">
+                <div className="flex items-baseline justify-between gap-4">
+                  <p id={progressId} className="text-base font-medium" aria-live="polite">
+                    {headline(snapshot)}
+                  </p>
+                  <span className="text-base font-medium tabular-nums">{percent}%</span>
                 </div>
                 <div
                   role="progressbar"
@@ -403,57 +313,77 @@ export function UploadDialog() {
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={percent}
-                  className="mt-3 h-2 overflow-hidden rounded-full bg-surface-sunken"
+                  className="mt-3 h-1 overflow-hidden rounded-full bg-border"
                 >
                   <div
                     className={cn(
-                      'h-full rounded-full transition-[width] duration-(--duration-base)',
-                      pending === 0 ? 'bg-keep' : 'bg-focus',
+                      'h-full rounded-full',
+                      pending === 0 && counts.failed === 0 ? 'bg-keep' : 'bg-ink',
                     )}
                     style={{ width: `${percent}%` }}
                   />
                 </div>
+                <div className="mt-2.5 flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <p className="text-xs text-ink-muted tabular-nums">{detail(snapshot)}</p>
+                  {pending > 0 &&
+                    (snapshot.paused ? (
+                      <Button size="sm" variant="outline" onClick={() => manager.resume()}>
+                        <Play aria-hidden="true" /> Resume
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => manager.pause()}>
+                        <Pause aria-hidden="true" /> Pause
+                      </Button>
+                    ))}
+                </div>
               </section>
-            )}
 
-            {hasItems && (
-              <div role="toolbar" aria-label="Show" className="-mb-1 flex gap-1 overflow-x-auto">
-                {FILTERS.filter((entry) => entry.key === 'all' || countFor(entry.key) > 0).map((entry) => (
-                  <button
-                    key={entry.key}
-                    type="button"
-                    aria-pressed={active === entry.key}
-                    onClick={() => setFilter(entry.key)}
-                    className={cn(
-                      'inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm transition-colors duration-(--duration-fast)',
-                      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-                      active === entry.key
-                        ? 'bg-primary text-on-primary'
-                        : 'text-ink-muted hover:bg-surface-sunken hover:text-ink',
-                    )}
-                  >
-                    {entry.label}
-                    <span
-                      className={cn('tabular-nums', active === entry.key ? 'opacity-80' : 'text-ink-subtle')}
+              <div className="flex shrink-0 items-center justify-between gap-3 border-y px-6 py-2">
+                <div role="toolbar" aria-label="Show" className="-ml-2 flex min-w-0 gap-0.5 overflow-x-auto">
+                  {FILTERS.filter((entry) => entry.key === 'all' || countFor(entry.key) > 0).map((entry) => (
+                    <button
+                      key={entry.key}
+                      type="button"
+                      aria-pressed={active === entry.key}
+                      onClick={() => setFilter(entry.key)}
+                      className={cn(
+                        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm transition-colors duration-(--duration-fast)',
+                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
+                        active === entry.key
+                          ? 'bg-surface-sunken font-medium text-ink'
+                          : 'text-ink-muted hover:text-ink',
+                      )}
                     >
-                      {countFor(entry.key).toLocaleString()}
-                    </span>
-                  </button>
-                ))}
+                      {entry.label}
+                      <span className="text-ink-subtle tabular-nums">
+                        {countFor(entry.key).toLocaleString()}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={chooseFiles}
+                    className={cn(dragging && 'bg-selection text-ink')}
+                  >
+                    <Upload aria-hidden="true" /> <span className="max-sm:sr-only">Add files</span>
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={chooseFolder} aria-label="Add a folder">
+                    <FolderUp aria-hidden="true" />
+                  </Button>
+                </div>
               </div>
-            )}
-          </div>
 
-          {hasItems && <FileList items={shown} onRetry={(id) => manager.retry(id)} />}
+              <FileList items={shown} onRetry={(id) => manager.retry(id)} />
 
-          {hasItems && (
-            <footer className="flex flex-wrap items-center justify-end gap-3 border-t px-6 py-3.5">
-              <p className="min-w-0 flex-1 text-xs text-ink-subtle max-sm:hidden">
-                {pending > 0
-                  ? 'You can close this window. Uploads carry on while you browse.'
-                  : 'New photos appear in your library as they’re processed.'}
-              </p>
-              <div className="flex flex-wrap gap-2">
+              <footer className="flex shrink-0 items-center justify-end gap-2 border-t px-6 py-3">
+                {pending > 0 && (
+                  <p className="mr-auto text-xs text-ink-muted max-sm:hidden">
+                    Uploads continue in the background
+                  </p>
+                )}
                 {counts.failed > 0 && (
                   <Button variant="outline" onClick={() => manager.retryFailed()}>
                     <RotateCw aria-hidden="true" /> Retry failed
@@ -465,8 +395,8 @@ export function UploadDialog() {
                   </Button>
                 )}
                 <Button onClick={() => setOpen(false)}>{pending > 0 ? 'Hide' : 'Done'}</Button>
-              </div>
-            </footer>
+              </footer>
+            </>
           )}
 
           <input
@@ -499,20 +429,6 @@ export function UploadDialog() {
   );
 }
 
-/** In the sidebar and the phone header. */
-export function UploadButton({ compact = false }: { compact?: boolean }) {
-  const { setOpen } = useUploads();
-  return compact ? (
-    <Button variant="ghost" size="icon-lg" aria-label="Upload" onClick={() => setOpen(true)}>
-      <Upload />
-    </Button>
-  ) : (
-    <Button className="w-full justify-start" onClick={() => setOpen(true)}>
-      <Upload aria-hidden="true" /> Upload
-    </Button>
-  );
-}
-
 /** While the dialog is closed: a small card with the overall progress, one click from the dialog. */
 export function UploadTray() {
   const { manager, snapshot, open, setOpen } = useUploads();
@@ -525,7 +441,7 @@ export function UploadTray() {
   return (
     <section
       aria-label="Uploads"
-      className="fixed bottom-4 left-4 z-40 w-[min(320px,calc(100vw-2rem))] rounded-xl border bg-surface-raised shadow-lg lg:left-62"
+      className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-4 z-40 w-[min(320px,calc(100vw-2rem))] rounded-xl border bg-surface-raised shadow-lg md:bottom-4 md:left-[calc(var(--sidebar)+1rem)]"
     >
       <div className="flex items-center gap-3 px-4 pt-3">
         {failedOnly ? (

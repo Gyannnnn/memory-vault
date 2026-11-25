@@ -35,7 +35,7 @@ export function Brand({ className }: { className?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
       <BrandMark />
-      <span className="text-[15px] font-semibold tracking-tight">Memory Vault</span>
+      <span className="text-md font-medium tracking-tight">Memory Vault</span>
     </span>
   );
 }

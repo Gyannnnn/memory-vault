@@ -62,7 +62,7 @@ function AreaPanel({
       className="flex h-[42%] shrink-0 flex-col border-t bg-surface md:h-auto md:w-[340px] md:border-t-0 md:border-l"
     >
       <div className="flex h-12 shrink-0 items-center justify-between px-4">
-        <h2 className="text-sm font-semibold">In this area</h2>
+        <h2 className="text-sm font-medium">In this area</h2>
         <p className="text-xs text-ink-subtle tabular-nums" aria-live="polite">
           {loading ? '' : `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}`}
         </p>
@@ -193,7 +193,7 @@ export default function LibraryMap() {
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-surface-sunken text-ink-muted ring-1 ring-border">
           <MapPinOff className="size-5" aria-hidden="true" />
         </span>
-        <p className="mt-5 font-semibold">No photos with a location yet</p>
+        <p className="mt-5 font-medium">No photos with a location yet</p>
         <p className="mt-1.5 text-sm text-ink-muted">
           Photos taken with location turned on appear here once they have been processed.
         </p>

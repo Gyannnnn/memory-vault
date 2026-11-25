@@ -181,9 +181,7 @@ function Media({
         )}
         <p className="mt-3 font-medium text-ink">{tile.name}</p>
         <p className="mt-1 text-sm">
-          {tile.pending
-            ? 'Its preview is still being made and appears here when it’s ready.'
-            : 'No preview for this file.'}
+          {tile.pending ? 'Preview not ready yet.' : 'No preview for this file.'}
         </p>
         {detail && <OpenOriginal href={detail.originalUrl} />}
       </div>

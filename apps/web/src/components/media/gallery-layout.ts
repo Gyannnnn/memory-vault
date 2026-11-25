@@ -29,6 +29,7 @@ export type Block =
       top: number;
       height: number;
       tileHeight: number;
+      labelHeight: number;
       segments: { day: string; left: number; items: PlacedTile[] }[];
     }
   | { kind: 'placeholder'; key: string; top: number; height: number; section: string };
@@ -113,6 +114,7 @@ function layoutDays(
       key: `${keyPrefix}pk:${packed[0]!.day.day}`,
       height: blockHeight,
       tileHeight: rowHeight,
+      labelHeight: label,
       segments: packed.map(({ day, left }) => {
         let x = 0;
         return {

@@ -67,9 +67,9 @@ export const tokens = {
   space: { 0: 0, 0.5: 2, 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12: 48, 16: 64, 20: 80 },
   radius: { sm: 6, md: 10, lg: 14, xl: 20, full: 9999 },
   font: {
+    // SUSE, dealt from the taste skill's library for software (library/type.json).
     sans: [
-      'Inter',
-      'Inter Variable',
+      'SUSE',
       'ui-sans-serif',
       'system-ui',
       '-apple-system',
@@ -79,15 +79,20 @@ export const tokens = {
     ],
     mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   },
-  fontSize: { xs: 12, sm: 13, md: 14, base: 16, lg: 18, xl: 20, '2xl': 24, '3xl': 30, '4xl': 36 },
+  /** Nothing smaller than 13 px; reading text 15–16 px. */
+  fontSize: { xs: 13, sm: 14, md: 15, base: 16, lg: 18, xl: 20, '2xl': 24, '3xl': 30, '4xl': 36 },
+  /** Line heights for each size above, in px. */
+  fontLeading: { xs: 18, sm: 20, md: 22, base: 24, lg: 26, xl: 28, '2xl': 30, '3xl': 36, '4xl': 42 },
   lineHeight: { tight: 1.2, snug: 1.35, normal: 1.5 },
-  fontWeight: { regular: 400, medium: 500, semibold: 600, bold: 700 },
-  letterSpacing: { tight: '-0.015em', normal: '0', wide: '0.02em' },
+  /** Text sets in 400 and 500 only; 600 is for the brand mark. */
+  fontWeight: { regular: 400, medium: 500, semibold: 600 },
+  letterSpacing: { display: '-0.03em', tight: '-0.015em', normal: '0', wide: '0.02em' },
   motion: {
-    duration: { fast: 120, base: 200, slow: 280 },
+    /** press 90, hover out 120, hover in 150, panels 200. */
+    duration: { press: 90, fast: 120, hover: 150, base: 200, slow: 280 },
     easing: {
-      standard: 'cubic-bezier(0.2, 0, 0, 1)',
-      enter: 'cubic-bezier(0, 0, 0, 1)',
+      standard: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      enter: 'cubic-bezier(0.22, 1, 0.36, 1)',
       exit: 'cubic-bezier(0.3, 0, 1, 1)',
     },
   },

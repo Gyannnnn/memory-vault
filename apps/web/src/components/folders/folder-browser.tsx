@@ -17,6 +17,7 @@ import { PhotoViewer } from '@/components/viewer/photo-viewer';
 import { usePhotoParam } from '@/components/viewer/use-photo-param';
 import { libraryQueries } from '@/lib/library';
 import { useMounted } from '@/lib/use-mounted';
+import { cn } from '@/lib/utils';
 
 const count = (value: number, one: string, many: string) =>
   `${value.toLocaleString()} ${value === 1 ? one : many}`;
@@ -116,7 +117,7 @@ function FileGrid({
                 <p className="mt-1.5 truncate text-xs" title={file.name}>
                   {file.name}
                 </p>
-                <p className="truncate text-[11px] text-ink-subtle">{formatBytes(file.sizeBytes)}</p>
+                <p className="truncate text-xs text-ink-subtle">{formatBytes(file.sizeBytes)}</p>
               </div>
             ))}
           </div>
@@ -172,10 +173,10 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
 
   return (
     <>
-      <div className="border-b px-4 pt-8 pb-6 sm:px-8">
+      <div className="border-b px-4 pt-8 pb-6 sm:px-8 md:pt-10">
         {!isRoot && <Breadcrumbs path={first.folder.path} />}
-        <div className="mt-1 flex items-start justify-between gap-4">
-          <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight">{title}</h1>
+        <div className={cn('flex items-start justify-between gap-4', !isRoot && 'mt-1')}>
+          <h1 className="min-w-0 truncate text-3xl font-medium tracking-display">{title}</h1>
           {!isRoot && folderId && (
             <Button
               variant="outline"
@@ -192,9 +193,9 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
             </Button>
           )}
         </div>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="mt-1.5 text-sm text-ink-muted tabular-nums">
           {isRoot
-            ? 'Every source, mirrored folder by folder exactly as it was on the device.'
+            ? count(first.folders.length, 'source', 'sources')
             : [
                 first.folders.length ? count(first.folders.length, 'folder', 'folders') : null,
                 first.fileTotal ? count(first.fileTotal, 'file', 'files') : null,

@@ -34,6 +34,12 @@ export const manageNav: NavItem[] = [
   { href: '/settings/security', label: 'Settings', icon: Settings, matches: ['/settings'] },
 ];
 
+/** The phone's tab bar: these three around the Upload button, then More. */
+export const mobileTabs: NavItem[] = [libraryNav[0]!, libraryNav[1]!, libraryNav[2]!];
+
+/** Everything else, in the More sheet. */
+export const mobileMoreNav: NavItem[] = [...libraryNav.slice(3), ...manageNav];
+
 export function isActive(item: NavItem, pathname: string): boolean {
   if (item.href === '/') return pathname === '/';
   return [item.href, ...(item.matches ?? [])].some(

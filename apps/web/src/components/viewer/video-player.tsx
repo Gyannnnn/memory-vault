@@ -35,8 +35,8 @@ export function VideoPlayer({ detail, poster }: { detail: AssetDetail; poster: s
         <p className="font-medium">This video can’t play in the browser yet</p>
         <p className="mt-1 text-sm text-ink-muted">
           {detail.stream
-            ? 'Its streaming version didn’t load. Check your connection and try again.'
-            : 'Its format isn’t supported here. A version that plays everywhere is still being made.'}
+            ? 'The stream didn’t load. Check your connection and try again.'
+            : 'A version that plays in the browser is being made.'}
         </p>
         <a
           href={detail.originalUrl}

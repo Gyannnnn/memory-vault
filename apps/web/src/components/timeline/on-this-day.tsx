@@ -23,10 +23,10 @@ export function OnThisDay() {
   if (groups.length === 0) return null;
 
   return (
-    <section aria-labelledby="on-this-day" className="px-4 pt-6 sm:px-8">
+    <section aria-labelledby="on-this-day" className="px-4 pt-6 pr-12 sm:px-8 sm:pr-16">
       <div className="flex items-center gap-2">
         <History className="size-4 text-ink-muted" aria-hidden="true" />
-        <h2 id="on-this-day" className="text-sm font-semibold">
+        <h2 id="on-this-day" className="text-sm font-medium">
           On this day
         </h2>
       </div>
@@ -52,7 +52,7 @@ export function OnThisDay() {
                   data-theme="dark"
                   className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-scrim to-transparent px-3 pt-8 pb-2.5"
                 >
-                  <span className="block text-sm font-semibold text-ink">
+                  <span className="block text-sm font-medium text-ink">
                     {group.yearsAgo === 1 ? '1 year ago' : `${group.yearsAgo} years ago`}
                   </span>
                   <span className="block text-xs text-ink-muted">
