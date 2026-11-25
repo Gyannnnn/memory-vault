@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { PageHeader } from './page-header';
 
 /** Placeholder for a screen that arrives in a later milestone. */
@@ -7,11 +8,14 @@ export function ComingSoon({
   icon: Icon,
   summary,
   milestone,
+  children,
 }: {
   title: string;
   icon: LucideIcon;
   summary: string;
   milestone: string;
+  /** What already works here, shown under the placeholder. */
+  children?: ReactNode;
 }) {
   return (
     <>
@@ -26,6 +30,7 @@ export function ComingSoon({
           <p className="mt-4 text-xs text-ink-subtle">Planned for milestone {milestone}</p>
         </div>
       </section>
+      {children}
     </>
   );
 }
