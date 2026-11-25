@@ -246,7 +246,7 @@ export function SearchView() {
 
   return (
     <>
-      <div className="border-b px-4 pt-8 pb-5 sm:px-8">
+      <div className="border-b px-4 py-4 sm:px-8">
         <h1 className="sr-only">Search</h1>
         <label htmlFor="library-search" className="sr-only">
           Search your library

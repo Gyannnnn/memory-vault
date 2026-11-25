@@ -5,10 +5,11 @@ import type { FolderFile } from '@memory-vault/shared';
 import { formatBytes } from '@memory-vault/shared';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { ChevronRight, Download, Folder, FolderOpen, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Folder, FolderOpen, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MediaTile, tileLabel } from '@/components/media/media-tile';
+import { PageHeader } from '@/components/page-header';
 import { SelectionProvider } from '@/components/selection/selection';
 import { SelectionBar, useZipDownload } from '@/components/selection/selection-bar';
 import { Button } from '@/components/ui/button';
@@ -17,35 +18,55 @@ import { PhotoViewer } from '@/components/viewer/photo-viewer';
 import { usePhotoParam } from '@/components/viewer/use-photo-param';
 import { libraryQueries } from '@/lib/library';
 import { useMounted } from '@/lib/use-mounted';
-import { cn } from '@/lib/utils';
 
 const count = (value: number, one: string, many: string) =>
   `${value.toLocaleString()} ${value === 1 ? one : many}`;
 
-function Breadcrumbs({ path }: { path: { id: string; name: string }[] }) {
+/**
+ * The folders above this one, before its name in the page bar: the whole path from 640 px
+ * (the middle folded into "…" when it is deep), a single step back on a phone.
+ */
+function FolderTrail({ path }: { path: { id: string; name: string }[] }) {
+  const ancestors = path.slice(0, -1);
+  const parent = ancestors.at(-1);
+  const shown = ancestors.length > 2 ? ancestors.slice(-2) : ancestors;
+  const step = <ChevronRight className="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />;
+  const link = 'truncate rounded-sm text-ink-muted transition-colors hover:text-ink';
+
   return (
-    <nav
-      aria-label="Folder path"
-      className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-ink-muted"
-    >
-      <Link href="/folders" className="rounded-sm hover:text-ink">
-        Folders
+    <>
+      <Link
+        href={parent ? `/folders/${parent.id}` : '/folders'}
+        aria-label={`Back to ${parent?.name ?? 'Folders'}`}
+        className="-ml-2 grid size-9 shrink-0 place-items-center rounded-md text-ink-muted hover:bg-ink/[0.04] hover:text-ink sm:hidden"
+      >
+        <ChevronLeft className="size-5" aria-hidden="true" />
       </Link>
-      {path.map((part, index) => (
-        <span key={part.id} className="flex min-w-0 items-center gap-1">
-          <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
-          {index === path.length - 1 ? (
-            <span aria-current="page" className="truncate font-medium text-ink">
-              {part.name}
-            </span>
-          ) : (
-            <Link href={`/folders/${part.id}`} className="truncate rounded-sm hover:text-ink">
-              {part.name}
+      <nav aria-label="Folder path" className="hidden min-w-0 shrink-[10] text-lg sm:block">
+        <ol className="flex min-w-0 items-center gap-1.5">
+          <li className="flex shrink-0 items-center gap-1.5">
+            <Link href="/folders" className={link}>
+              Folders
             </Link>
+            {step}
+          </li>
+          {shown.length < ancestors.length && (
+            <li className="flex shrink-0 items-center gap-1.5 text-ink-subtle">
+              <span aria-label={`${ancestors.length - shown.length} more folders`}>…</span>
+              {step}
+            </li>
           )}
-        </span>
-      ))}
-    </nav>
+          {shown.map((part) => (
+            <li key={part.id} className="flex min-w-0 items-center gap-1.5">
+              <Link href={`/folders/${part.id}`} className={link}>
+                {part.name}
+              </Link>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </nav>
+    </>
   );
 }
 
@@ -173,37 +194,39 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
 
   return (
     <>
-      <div className="border-b px-4 pt-8 pb-6 sm:px-8 md:pt-10">
-        {!isRoot && <Breadcrumbs path={first.folder.path} />}
-        <div className={cn('flex items-start justify-between gap-4', !isRoot && 'mt-1')}>
-          <h1 className="min-w-0 truncate text-3xl font-medium tracking-display">{title}</h1>
-          {!isRoot && folderId && (
-            <Button
-              variant="outline"
-              className="shrink-0"
-              disabled={zip.busy}
-              onClick={() => void zip.download({ folderId })}
-            >
-              {zip.busy ? (
-                <Loader2 className="animate-spin" aria-hidden="true" />
-              ) : (
-                <Download aria-hidden="true" />
-              )}
-              <span className="max-sm:sr-only">Download folder</span>
-            </Button>
-          )}
-        </div>
-        <p className="mt-1.5 text-sm text-ink-muted tabular-nums">
-          {isRoot
+      <PageHeader
+        title={title}
+        trail={!isRoot && <FolderTrail path={first.folder.path} />}
+        description={
+          isRoot
             ? count(first.folders.length, 'source', 'sources')
             : [
                 first.folders.length ? count(first.folders.length, 'folder', 'folders') : null,
                 first.fileTotal ? count(first.fileTotal, 'file', 'files') : null,
               ]
                 .filter(Boolean)
-                .join(' · ') || 'Empty folder'}
-        </p>
-      </div>
+                .join(' · ') || 'Empty folder'
+        }
+        actions={
+          !isRoot &&
+          folderId && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={zip.busy}
+              onClick={() => void zip.download({ folderId })}
+              aria-label="Download folder"
+            >
+              {zip.busy ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Download aria-hidden="true" />
+              )}
+              <span className="max-sm:hidden">Download</span>
+            </Button>
+          )
+        }
+      />
 
       <div className="space-y-8 px-4 py-6 sm:px-8">
         {first.folders.length > 0 && (

@@ -23,22 +23,22 @@ export function OnThisDay() {
   if (groups.length === 0) return null;
 
   return (
-    <section aria-labelledby="on-this-day" className="px-4 pt-6 pr-12 sm:px-8 sm:pr-16">
-      <div className="flex items-center gap-2">
+    <section aria-labelledby="on-this-day" className="pt-5">
+      <div className="flex items-center gap-2 px-4 sm:px-8">
         <History className="size-4 text-ink-muted" aria-hidden="true" />
         <h2 id="on-this-day" className="text-sm font-medium">
           On this day
         </h2>
       </div>
-      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <ul className="mt-3 mr-12 ml-4 flex snap-x gap-3 overflow-x-auto [scrollbar-width:none] sm:mr-16 sm:ml-8 [&::-webkit-scrollbar]:hidden">
         {groups.map((group) => {
           const cover = group.items[0]!;
           return (
-            <li key={group.year}>
+            <li key={group.year} className="w-44 shrink-0 snap-start sm:w-52">
               <button
                 type="button"
                 onClick={() => setOpen({ items: group.items, id: cover.id })}
-                className="group relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-surface-sunken text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                className="group relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-surface-sunken text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
               >
                 {cover.thumb && (
                   <img
@@ -55,7 +55,7 @@ export function OnThisDay() {
                   <span className="block text-sm font-medium text-ink">
                     {group.yearsAgo === 1 ? '1 year ago' : `${group.yearsAgo} years ago`}
                   </span>
-                  <span className="block text-xs text-ink-muted">
+                  <span className="block truncate text-xs text-ink-muted">
                     {formatDay(cover.localAt.slice(0, 10))} · {group.total}{' '}
                     {group.total === 1 ? 'item' : 'items'}
                   </span>

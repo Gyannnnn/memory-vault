@@ -151,7 +151,7 @@ export function TimelineScrubber({ layout, scrollMargin }: Props) {
       onPointerLeave={() => !dragging && setHover(null)}
       onKeyDown={onKeyDown}
       className={cn(
-        'group/scrubber fixed top-16 right-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 w-11 cursor-ns-resize touch-none select-none outline-none sm:w-14 md:top-4 md:bottom-4',
+        'group/scrubber fixed top-28 right-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 w-11 cursor-ns-resize touch-none select-none outline-none sm:w-14 md:top-4 md:bottom-4',
         'focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset',
       )}
     >
