@@ -25,6 +25,10 @@ const pairs: [ColorRole, ColorRole, number][] = [
   ['keep', 'surface', 3],
   ['skip', 'surface', 3],
   ['focus', 'background', 3],
+  // Navigation icon tiles: the glyph is a graphic, so 3:1 (WCAG 1.4.11).
+  ...(
+    ['tintBlue', 'tintViolet', 'tintAmber', 'tintRose', 'tintOrange', 'tintGreen', 'tintTeal', 'tintGray', 'tintSlate'] as const
+  ).map((tint): [ColorRole, ColorRole, number] => ['onTint', tint, 3]),
 ];
 
 describe('colour tokens', () => {

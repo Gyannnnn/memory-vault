@@ -11,27 +11,31 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+export type Tint = 'blue' | 'violet' | 'amber' | 'rose' | 'orange' | 'green' | 'teal' | 'gray' | 'slate';
+
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** The colour of the item's icon tile. */
+  tint: Tint;
   /** Extra paths that should highlight this item. */
   matches?: string[];
 }
 
 export const libraryNav: NavItem[] = [
-  { href: '/', label: 'Photos', icon: Images },
-  { href: '/search', label: 'Search', icon: Search },
-  { href: '/folders', label: 'Folders', icon: Folder },
-  { href: '/albums', label: 'Albums', icon: BookImage },
-  { href: '/people', label: 'People', icon: Users },
-  { href: '/map', label: 'Map', icon: Map },
+  { href: '/', label: 'Photos', icon: Images, tint: 'blue' },
+  { href: '/search', label: 'Search', icon: Search, tint: 'violet' },
+  { href: '/folders', label: 'Folders', icon: Folder, tint: 'amber' },
+  { href: '/albums', label: 'Albums', icon: BookImage, tint: 'rose' },
+  { href: '/people', label: 'People', icon: Users, tint: 'orange' },
+  { href: '/map', label: 'Map', icon: Map, tint: 'green' },
 ];
 
 export const manageNav: NavItem[] = [
-  { href: '/trash', label: 'Trash', icon: Trash2 },
-  { href: '/stats', label: 'Storage', icon: ChartPie },
-  { href: '/settings/security', label: 'Settings', icon: Settings, matches: ['/settings'] },
+  { href: '/trash', label: 'Trash', icon: Trash2, tint: 'gray' },
+  { href: '/stats', label: 'Storage', icon: ChartPie, tint: 'teal' },
+  { href: '/settings/security', label: 'Settings', icon: Settings, tint: 'slate', matches: ['/settings'] },
 ];
 
 /** The phone's tab bar: these three around the Upload button, then More. */

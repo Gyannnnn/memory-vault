@@ -33,6 +33,7 @@ import { UploadProvider, useUploads } from '@/components/upload/upload-provider'
 import { authStep } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { isActive, libraryNav, manageNav, mobileMoreNav, mobileTabs, type NavItem } from './nav';
+import { NavIcon } from './nav-icon';
 import { SIDEBAR, sidebarCookie, type SidebarState } from './sidebar-state';
 
 export interface ShellUser {
@@ -159,7 +160,10 @@ function Sidebar({
   return (
     <div className="flex h-full flex-col">
       <div
-        className={cn('flex h-14 shrink-0 items-center', collapsed ? 'justify-center' : 'gap-2 pr-2 pl-4')}
+        className={cn(
+          'flex h-14 shrink-0 items-center border-b',
+          collapsed ? 'justify-center' : 'gap-2 pr-2 pl-4',
+        )}
       >
         {!collapsed && (
           <Link href="/" className="min-w-0 flex-1 rounded-md" aria-label="Memory Vault, Photos">
@@ -185,7 +189,7 @@ function Sidebar({
         </Tooltip>
       </div>
 
-      <div className={cn('shrink-0 pb-4', collapsed ? 'flex justify-center' : 'px-3')}>
+      <div className={cn('shrink-0 pt-3 pb-2', collapsed ? 'flex justify-center' : 'px-3')}>
         {collapsed ? (
           <RailTip label="Upload">
             <Button size="icon" onClick={() => setOpen(true)} aria-label="Upload">
@@ -203,13 +207,8 @@ function Sidebar({
         aria-label="Main"
         className={cn('min-h-0 flex-1 overflow-y-auto pb-4', collapsed ? 'px-3.5' : 'px-3')}
       >
-        <NavList items={libraryNav} pathname={pathname} collapsed={collapsed} />
-        {collapsed ? (
-          <div className="mx-2 my-3 border-t" role="presentation" />
-        ) : (
-          <p className="mt-6 mb-1 px-3 text-xs font-medium text-ink-subtle">Manage</p>
-        )}
-        <NavList items={manageNav} pathname={pathname} collapsed={collapsed} />
+        <NavGroup label="Library" items={libraryNav} pathname={pathname} collapsed={collapsed} />
+        <NavGroup label="Manage" items={manageNav} pathname={pathname} collapsed={collapsed} divided />
       </nav>
 
       <div className={cn('shrink-0 border-t', collapsed ? 'flex justify-center py-2' : 'p-2')}>
@@ -228,36 +227,50 @@ function RailTip({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function NavList({ items, pathname, collapsed }: { items: NavItem[]; pathname: string; collapsed: boolean }) {
+/** A labelled run of links; in the rail the label gives way to a hairline between groups. */
+function NavGroup({
+  label,
+  items,
+  pathname,
+  collapsed,
+  divided = false,
+}: {
+  label: string;
+  items: NavItem[];
+  pathname: string;
+  collapsed: boolean;
+  divided?: boolean;
+}) {
   return (
-    <ul className="space-y-0.5">
-      {items.map((item) => {
-        const active = isActive(item, pathname);
-        const link = (
-          <Link
-            href={item.href}
-            aria-current={active ? 'page' : undefined}
-            aria-label={collapsed ? item.label : undefined}
-            className={cn(
-              'flex h-9 items-center rounded-md text-sm font-medium transition-colors duration-(--duration-fast)',
-              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-              collapsed ? 'w-10 justify-center' : 'gap-3 px-3',
-              active
-                ? 'bg-surface-sunken text-ink'
-                : 'text-ink-muted hover:bg-surface-sunken/70 hover:text-ink',
-            )}
-          >
-            <item.icon
-              className="size-[18px] shrink-0"
-              strokeWidth={active ? 2.1 : 1.75}
-              aria-hidden="true"
-            />
-            {!collapsed && <span className="truncate">{item.label}</span>}
-          </Link>
-        );
-        return <li key={item.href}>{collapsed ? <RailTip label={item.label}>{link}</RailTip> : link}</li>;
-      })}
-    </ul>
+    <div className={divided ? 'mt-4' : 'mt-2'}>
+      {collapsed ? (
+        divided && <div className="mx-2 mb-3 border-t" role="presentation" />
+      ) : (
+        <p className="mb-1 px-2 text-xs font-medium text-ink-subtle">{label}</p>
+      )}
+      <ul className="space-y-px">
+        {items.map((item) => {
+          const active = isActive(item, pathname);
+          const link = (
+            <Link
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              aria-label={collapsed ? item.label : undefined}
+              className={cn(
+                'flex items-center rounded-lg text-sm text-ink transition-colors duration-(--duration-fast)',
+                'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+                collapsed ? 'size-10 justify-center' : 'h-9 gap-3 px-2',
+                active ? 'bg-ink/[0.07] font-medium' : 'hover:bg-ink/[0.04]',
+              )}
+            >
+              <NavIcon item={item} />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </Link>
+          );
+          return <li key={item.href}>{collapsed ? <RailTip label={item.label}>{link}</RailTip> : link}</li>;
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -542,11 +555,7 @@ function MoreSheet({
                       onClick={() => onOpenChange(false)}
                       className={cn(row, 'text-ink', active && 'font-medium')}
                     >
-                      <item.icon
-                        className="size-[22px] text-ink-muted"
-                        strokeWidth={1.75}
-                        aria-hidden="true"
-                      />
+                      <NavIcon item={item} size="lg" />
                       <span className="flex-1">{item.label}</span>
                       {active && <Check className="size-[18px] text-ink-muted" aria-label="Current page" />}
                     </Link>

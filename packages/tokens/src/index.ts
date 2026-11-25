@@ -29,6 +29,17 @@ const lightColors = {
   infoSoft: '#DBEAFE',
   scrim: 'rgba(10, 10, 11, 0.72)',
   selection: 'rgba(37, 99, 235, 0.14)',
+  /** Icon tiles in the navigation: one hue per destination, white glyphs (3:1 or better). */
+  tintBlue: '#2563EB',
+  tintViolet: '#7C3AED',
+  tintAmber: '#D97706',
+  tintRose: '#E11D48',
+  tintOrange: '#EA580C',
+  tintGreen: '#16A34A',
+  tintTeal: '#0D9488',
+  tintGray: '#6B7280',
+  tintSlate: '#475569',
+  onTint: '#FFFFFF',
 } as const;
 
 export type ColorRole = keyof typeof lightColors;
@@ -59,6 +70,16 @@ const darkColors: Record<ColorRole, string> = {
   infoSoft: 'rgba(96, 165, 250, 0.14)',
   scrim: 'rgba(0, 0, 0, 0.82)',
   selection: 'rgba(96, 165, 250, 0.18)',
+  tintBlue: '#2563EB',
+  tintViolet: '#7C3AED',
+  tintAmber: '#D97706',
+  tintRose: '#E11D48',
+  tintOrange: '#EA580C',
+  tintGreen: '#16A34A',
+  tintTeal: '#0D9488',
+  tintGray: '#6B7280',
+  tintSlate: '#52525B',
+  onTint: '#FFFFFF',
 };
 
 export const tokens = {
