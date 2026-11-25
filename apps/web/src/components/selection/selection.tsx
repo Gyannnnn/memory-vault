@@ -1,5 +1,6 @@
 'use client';
 
+import type { AssetTile } from '@memory-vault/shared';
 import {
   createContext,
   useCallback,
@@ -19,6 +20,8 @@ export interface Selection {
   /** `range`: also select everything between the last tile picked and this one (shift-click). */
   toggle: (id: string, options?: { range?: boolean }) => void;
   clear: () => void;
+  /** The selected items that are loaded, in the order shown. */
+  selectedTiles: () => AssetTile[];
 }
 
 const SelectionContext = createContext<Selection | null>(null);
@@ -27,11 +30,12 @@ const SelectionContext = createContext<Selection | null>(null);
 export const useSelection = () => useContext(SelectionContext);
 
 /**
- * Selection for a grid of tiles. `order` is the order they're shown in, for shift-click
- * ranges. Esc clears the selection unless a dialog (such as the viewer) is open.
+ * Selection for a grid of tiles, given in the order they're shown (for shift-click ranges).
+ * Esc clears the selection unless a dialog (such as the viewer) is open.
  */
-export function SelectionProvider({ order, children }: { order: string[]; children: ReactNode }) {
+export function SelectionProvider({ tiles, children }: { tiles: AssetTile[]; children: ReactNode }) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const order = useMemo(() => tiles.map((tile) => tile.id), [tiles]);
   const anchor = useRef<string | null>(null);
 
   const toggle = useCallback(
@@ -72,8 +76,15 @@ export function SelectionProvider({ order, children }: { order: string[]; childr
   }, [selected.size, clear]);
 
   const value = useMemo<Selection>(
-    () => ({ selected, active: selected.size > 0, isSelected: (id) => selected.has(id), toggle, clear }),
-    [selected, toggle, clear],
+    () => ({
+      selected,
+      active: selected.size > 0,
+      isSelected: (id) => selected.has(id),
+      toggle,
+      clear,
+      selectedTiles: () => tiles.filter((tile) => selected.has(tile.id)),
+    }),
+    [selected, toggle, clear, tiles],
   );
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }

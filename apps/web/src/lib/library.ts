@@ -1,4 +1,6 @@
 import type {
+  AlbumList,
+  AlbumSummary,
   AssetDetail,
   AssetPage,
   AssetSearchQuery,
@@ -60,6 +62,18 @@ export const libraryQueries = {
         api<AssetPage>(`/assets?${toSearchParams({ ...query, cursor: pageParam })}`),
       initialPageParam: undefined as string | undefined,
       getNextPageParam: (page) => page.nextCursor ?? undefined,
+      staleTime: MEDIA_STALE_MS,
+    }),
+  albums: () =>
+    queryOptions({
+      queryKey: ['albums'],
+      queryFn: () => api<AlbumList>('/albums'),
+      staleTime: MEDIA_STALE_MS,
+    }),
+  album: (id: string) =>
+    queryOptions({
+      queryKey: ['albums', id],
+      queryFn: () => api<AlbumSummary>(`/albums/${id}`),
       staleTime: MEDIA_STALE_MS,
     }),
   folder: (id: string | null) =>

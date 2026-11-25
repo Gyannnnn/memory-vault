@@ -3,8 +3,9 @@
 /* eslint-disable @next/next/no-img-element -- presigned S3 images, already sized */
 import type { AssetDetail, AssetTile } from '@memory-vault/shared';
 import { clampAspect } from '@memory-vault/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  BookPlus,
   ChevronLeft,
   ChevronRight,
   CirclePause,
@@ -12,6 +13,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Heart,
   Info,
   Loader,
   Loader2,
@@ -21,10 +23,14 @@ import {
 } from 'lucide-react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { AddToAlbumDialog } from '@/components/albums/add-to-album';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { errorMessage } from '@/lib/api';
 import { formatWallTime } from '@/lib/format';
 import { libraryQueries } from '@/lib/library';
+import { setFavorite } from '@/lib/organise';
 import { cn } from '@/lib/utils';
 import { InfoPanel } from './info-panel';
 import { VideoPlayer } from './video-player';
@@ -47,16 +53,25 @@ function ToolbarButton({
   onClick,
   children,
   pressed,
+  className,
 }: {
   label: string;
   onClick: () => void;
   children: React.ReactNode;
   pressed?: boolean;
+  className?: string;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon-lg" onClick={onClick} aria-label={label} aria-pressed={pressed}>
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          onClick={onClick}
+          aria-label={label}
+          aria-pressed={pressed}
+          className={className}
+        >
           {children}
         </Button>
       </TooltipTrigger>
@@ -247,6 +262,14 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
     [currentId],
   );
   const zoom = useRef<ZoomControls>(null);
+  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const favourite = detail.data?.favorite ?? tile?.favorite ?? false;
+  const toggleFavourite = useCallback(() => {
+    setFavorite(queryClient, [currentId], !favourite).catch((error: unknown) =>
+      toast.error('Favourites weren’t changed', { description: errorMessage(error) }),
+    );
+  }, [queryClient, currentId, favourite]);
 
   const go = useCallback((target: AssetTile | undefined) => target && onShow(target.id), [onShow]);
   const toggleInfo = useCallback(() => {
@@ -282,6 +305,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
       else if (event.key === 'ArrowRight') go(next);
       else if (event.key === 'i') toggleInfo();
       else if (event.key === 'm' && hasMotion) toggleMotion();
+      else if (event.key === '.') toggleFavourite();
       else if (event.key === '+' || event.key === '=') zoom.current?.zoom(1);
       else if (event.key === '-') zoom.current?.zoom(-1);
       else if (event.key === '0') zoom.current?.zoom(0);
@@ -290,7 +314,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, previous, next, toggleInfo, hasMotion, toggleMotion]);
+  }, [go, previous, next, toggleInfo, hasMotion, toggleMotion, toggleFavourite]);
 
   const title = tile ? formatWallTime(tile.localAt) : 'Loading';
   const place = detail.data?.location?.place;
@@ -343,14 +367,32 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
               </div>
               {zoomable && (
                 <>
-                  <ToolbarButton label="Zoom out (−)" onClick={() => zoom.current?.zoom(-1)}>
+                  <ToolbarButton
+                    label="Zoom out (−)"
+                    onClick={() => zoom.current?.zoom(-1)}
+                    className="max-sm:hidden"
+                  >
                     <Minus />
                   </ToolbarButton>
-                  <ToolbarButton label="Zoom in (+)" onClick={() => zoom.current?.zoom(1)}>
+                  <ToolbarButton
+                    label="Zoom in (+)"
+                    onClick={() => zoom.current?.zoom(1)}
+                    className="max-sm:hidden"
+                  >
                     <Plus />
                   </ToolbarButton>
                 </>
               )}
+              <ToolbarButton
+                label={favourite ? 'Remove from Favourites (.)' : 'Add to Favourites (.)'}
+                onClick={toggleFavourite}
+                pressed={favourite}
+              >
+                <Heart className={favourite ? 'fill-current' : undefined} />
+              </ToolbarButton>
+              <ToolbarButton label="Add to album" onClick={() => setAdding(true)}>
+                <BookPlus />
+              </ToolbarButton>
               {detail.data && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -452,6 +494,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
           </div>
 
           {infoOpen && <InfoPanel detail={detail.data} loading={detail.isPending} onClose={toggleInfo} />}
+          <AddToAlbumDialog assetIds={[currentId]} open={adding} onOpenChange={setAdding} />
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

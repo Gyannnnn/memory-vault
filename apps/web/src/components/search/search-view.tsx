@@ -1,11 +1,10 @@
 'use client';
 
-import type { AssetTile } from '@memory-vault/shared';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Check, ChevronDown, Loader2, Search, SearchX, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { GallerySection } from '@/components/media/gallery-layout';
+import { sectionsByMonth } from '@/components/media/sections';
 import { VirtualGallery } from '@/components/media/virtual-gallery';
 import { SelectionProvider } from '@/components/selection/selection';
 import { SelectionBar } from '@/components/selection/selection-bar';
@@ -19,7 +18,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { PhotoViewer } from '@/components/viewer/photo-viewer';
 import { usePhotoParam } from '@/components/viewer/use-photo-param';
-import { formatMonth } from '@/lib/format';
 import { libraryQueries } from '@/lib/library';
 import { sourceLabel } from '@/lib/sources';
 import { useMounted } from '@/lib/use-mounted';
@@ -142,18 +140,6 @@ function FilterMenu({
   );
 }
 
-/** Groups results by month, keeping their order. */
-function toSections(items: AssetTile[]): GallerySection[] {
-  const sections: GallerySection[] = [];
-  for (const item of items) {
-    const month = item.localAt.slice(0, 7);
-    const last = sections.at(-1);
-    if (last?.key === month) last.items!.push(item);
-    else sections.push({ key: month, title: formatMonth(month), items: [item], groupByDay: false });
-  }
-  return sections;
-}
-
 export function SearchView() {
   const mounted = useMounted();
   const params = useSearchParams();
@@ -198,8 +184,7 @@ export function SearchView() {
     enabled: active,
   });
   const items = useMemo(() => results.data?.pages.flatMap((page) => page.items) ?? [], [results.data]);
-  const sections = useMemo(() => toSections(items), [items]);
-  const order = useMemo(() => items.map((item) => item.id), [items]);
+  const sections = useMemo(() => sectionsByMonth(items), [items]);
   const total = results.data?.pages[0]?.total;
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = results;
   const loadMore = useCallback(() => {
@@ -376,7 +361,7 @@ export function SearchView() {
               {total !== undefined ? `${total.toLocaleString()} ${total === 1 ? 'result' : 'results'}` : ''}
             </p>
             {/* A new search starts a new selection. */}
-            <SelectionProvider key={JSON.stringify(filters)} order={order}>
+            <SelectionProvider key={JSON.stringify(filters)} tiles={items}>
               <VirtualGallery sections={sections} onOpen={viewer.open} onEndReached={loadMore} />
               <SelectionBar />
             </SelectionProvider>

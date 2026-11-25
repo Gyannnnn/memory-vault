@@ -62,10 +62,7 @@ export function PhotosTimeline() {
   );
 
   // Shift-click ranges run in the order shown, across the months loaded so far.
-  const order = useMemo(
-    () => sections.flatMap((section) => section.items?.map((item) => item.id) ?? []),
-    [sections],
-  );
+  const tiles = useMemo(() => sections.flatMap((section) => section.items ?? []), [sections]);
 
   const request = useCallback((months: string[]) => {
     setRequested((current) => {
@@ -157,7 +154,7 @@ export function PhotosTimeline() {
   return (
     <>
       <OnThisDay />
-      <SelectionProvider order={order}>
+      <SelectionProvider tiles={tiles}>
         <div className="px-4 pt-2 pb-16 pr-12 sm:px-8 sm:pr-16">
           <VirtualGallery sections={sections} onOpen={open} onNeedSections={request} onLayout={onLayout} />
         </div>

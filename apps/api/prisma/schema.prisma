@@ -45,6 +45,8 @@ model User {
   assetOrigins   AssetOrigin[]
   uploadSessions UploadSession[]
   usageSnapshots UsageSnapshot[]
+  albums         Album[]
+  albumItems     AlbumItem[]
 
   @@map("users")
 }
@@ -201,6 +203,7 @@ model Asset {
   searchTsv            Unsupported("tsvector")? @map("search_tsv")
   processedAt          DateTime?   @map("processed_at") @db.Timestamptz(3)
   processingError      String?     @map("processing_error")
+  favoriteAt           DateTime?   @map("favorite_at") @db.Timestamptz(3)
   deletedAt            DateTime?   @map("deleted_at") @db.Timestamptz(3)
   createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -211,6 +214,8 @@ model Asset {
   entries        FileEntry[]
   origins        AssetOrigin[]
   uploadSessions UploadSession[]
+  albumItems     AlbumItem[]
+  coverOf        Album[]         @relation("AlbumCover")
 
   @@unique([userId, sha256])
   @@index([userId, takenAt(sort: Desc), id])
@@ -220,7 +225,40 @@ model Asset {
   @@index([userId, placeId])
   // Also defined in SQL (migration 20261124120000_browse): GIN indexes on search_tsv and
   // original_name (trigram), and the triggers that keep local_at and search_tsv current.
+  // Migration 20261125120000_organise: a partial index on favourites.
   @@map("assets")
+}
+
+model Album {
+  id           String      @id @db.Uuid
+  userId       String      @map("user_id") @db.Uuid
+  name         String
+  /// Chosen cover; when unset (or no longer in the album) the newest item is shown.
+  coverAssetId String?     @map("cover_asset_id") @db.Uuid
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cover        Asset?      @relation("AlbumCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
+  items        AlbumItem[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("albums")
+}
+
+/// A photo can be in any number of albums; removing it from one leaves the photo alone.
+model AlbumItem {
+  albumId String   @map("album_id") @db.Uuid
+  assetId String   @map("asset_id") @db.Uuid
+  userId  String   @map("user_id") @db.Uuid
+  addedAt DateTime @default(now()) @map("added_at") @db.Timestamptz(3)
+  album   Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  asset   Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([albumId, assetId])
+  @@index([assetId])
+  @@index([userId])
+  @@map("album_items")
 }
 
 // ─── Reference data (not per user, no row-level security) ────────────────────

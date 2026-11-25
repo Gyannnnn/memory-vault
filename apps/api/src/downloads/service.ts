@@ -57,6 +57,20 @@ export class DownloadService {
       const day = new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
       return { name: `Memory Vault ${day} (${rows.length} ${rows.length === 1 ? 'file' : 'files'})`, rows };
     }
+    if ('albumId' in request) {
+      const album = await tx.album.findFirst({
+        where: { id: request.albumId, userId },
+        select: { name: true },
+      });
+      if (!album) throw notFound('Album not found');
+      const rows = await tx.$queryRaw<FileRow[]>`
+        SELECT a.original_name AS path, a.size_bytes, a.s3_key,
+               coalesce(a.original_modified_at, a.taken_at, a.created_at) AS modified_at
+        FROM album_items ai JOIN assets a ON a.id = ai.asset_id
+        WHERE ai.album_id = ${request.albumId}::uuid AND ${visible(userId)}
+        ORDER BY a.local_at, a.id`;
+      return { name: album.name, rows };
+    }
     const [folder] = await tx.$queryRaw<{ name: string }[]>`
       SELECT name FROM folders WHERE id = ${request.folderId}::uuid AND user_id = ${userId}::uuid AND deleted_at IS NULL`;
     if (!folder) throw notFound('Folder not found');

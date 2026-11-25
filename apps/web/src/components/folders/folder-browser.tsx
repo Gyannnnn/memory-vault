@@ -154,7 +154,6 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
   const first = listing.data?.pages[0];
   const files = useMemo(() => listing.data?.pages.flatMap((page) => page.files) ?? [], [listing.data]);
   const tiles = useMemo(() => files.map((file) => file.asset), [files]);
-  const order = useMemo(() => tiles.map((tile) => tile.id), [tiles]);
   const zip = useZipDownload();
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = listing;
@@ -273,7 +272,7 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
 
         {files.length > 0 && (
           <section aria-label="Files">
-            <SelectionProvider key={folderId ?? 'root'} order={order}>
+            <SelectionProvider key={folderId ?? 'root'} tiles={tiles}>
               <FileGrid files={files} onOpen={viewer.open} onEndReached={loadMore} />
               <SelectionBar />
             </SelectionProvider>

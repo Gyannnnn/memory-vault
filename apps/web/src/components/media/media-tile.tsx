@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- images are presigned S3 WebP derivatives, already sized */
 import type { AssetTile } from '@memory-vault/shared';
 import { clampAspect } from '@memory-vault/shared';
-import { Check, FileText, Film, Image as ImageIcon, Loader, Music, Play } from 'lucide-react';
+import { Check, FileText, Film, Heart, Image as ImageIcon, Loader, Music, Play } from 'lucide-react';
 import { memo, useRef, useState, type CSSProperties } from 'react';
 import { useSelection } from '@/components/selection/selection';
 import { formatClock, formatWallTime } from '@/lib/format';
@@ -19,8 +19,13 @@ const kindLabels: Record<AssetTile['kind'], string> = {
 };
 
 export function tileLabel(tile: AssetTile): string {
-  const label = `${kindLabels[tile.kind]}, ${formatWallTime(tile.localAt)}`;
-  return tile.pending ? `${label}, preview still being made` : label;
+  const label = [
+    kindLabels[tile.kind],
+    formatWallTime(tile.localAt),
+    tile.favorite ? 'favourite' : null,
+    tile.pending ? 'preview still being made' : null,
+  ];
+  return label.filter(Boolean).join(', ');
 }
 
 /** srcset widths: each derivative's longest side is 400 or 1080 px. */
@@ -146,6 +151,12 @@ export const MediaTile = memo(function MediaTile({
             <Play className="size-3 fill-current" aria-hidden="true" />
             {tile.durationMs ? formatClock(tile.durationMs) : null}
           </span>
+        )}
+        {tile.favorite && (
+          <Heart
+            className="pointer-events-none absolute bottom-1.5 left-1.5 size-4 fill-current text-ink-inverse drop-shadow-[0_1px_2px_rgb(0_0_0/0.45)] dark:text-ink"
+            aria-hidden="true"
+          />
         )}
         <span className="pointer-events-none absolute inset-0 bg-ink/0 transition-colors duration-(--duration-fast) group-hover:bg-ink/5" />
       </button>

@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
+  albumItemsRequest,
   assetSearchQuery,
+  createAlbumRequest,
+  favoriteRequest,
+  updateAlbumRequest,
   onThisDayQuery,
   exportPageQuery,
   pendingOriginalsQuery,
@@ -14,6 +18,7 @@ import type { AppContext } from '../context';
 import { authOf } from '../http/auth-middleware';
 import { notFound, parse } from '../http/errors';
 import { UploadService } from '../uploads/service';
+import { AlbumService } from './albums';
 import { BrowseService } from './browse';
 import { ExportService } from './export';
 import { ProcessingService } from './processing';
@@ -31,6 +36,7 @@ export function libraryRoutes(ctx: AppContext): Router {
   const processing = new ProcessingService(ctx);
   const streams = new StreamService(ctx);
   const exports = new ExportService(ctx);
+  const albums = new AlbumService(ctx);
 
   router.post('/assets/origins', async (request, response) => {
     const { items } = parse(recordOriginsRequest, request.body);
@@ -40,6 +46,48 @@ export function libraryRoutes(ctx: AppContext): Router {
   router.post('/assets/verify', async (request, response) => {
     const { sha256s } = parse(verifyAssetsRequest, request.body);
     response.json({ results: await uploads.verify(authOf(request).userId, sha256s) });
+  });
+
+  router.post('/assets/favorite', async (request, response) => {
+    const { ids, favorite } = parse(favoriteRequest, request.body);
+    response.json(await albums.setFavorite(authOf(request).userId, ids, favorite));
+  });
+
+  router.get('/albums', async (request, response) => {
+    response.json(await albums.list(authOf(request).userId));
+  });
+
+  router.post('/albums', async (request, response) => {
+    const input = parse(createAlbumRequest, request.body);
+    response.status(201).json(await albums.create(authOf(request).userId, input));
+  });
+
+  router.get('/albums/:id', async (request, response) => {
+    response.json(await albums.get(authOf(request).userId, parse(z.uuid(), request.params.id)));
+  });
+
+  router.patch('/albums/:id', async (request, response) => {
+    const input = parse(updateAlbumRequest, request.body);
+    response.json(await albums.update(authOf(request).userId, parse(z.uuid(), request.params.id), input));
+  });
+
+  router.delete('/albums/:id', async (request, response) => {
+    await albums.remove(authOf(request).userId, parse(z.uuid(), request.params.id));
+    response.status(204).end();
+  });
+
+  router.post('/albums/:id/items', async (request, response) => {
+    const { assetIds } = parse(albumItemsRequest, request.body);
+    response.json(
+      await albums.addItems(authOf(request).userId, parse(z.uuid(), request.params.id), assetIds),
+    );
+  });
+
+  router.post('/albums/:id/items/remove', async (request, response) => {
+    const { assetIds } = parse(albumItemsRequest, request.body);
+    response.json(
+      await albums.removeItems(authOf(request).userId, parse(z.uuid(), request.params.id), assetIds),
+    );
   });
 
   router.get('/assets', async (request, response) => {

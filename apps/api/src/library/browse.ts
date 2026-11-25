@@ -31,6 +31,7 @@ interface TileRow {
   sha256: string;
   has_thumb: boolean;
   pending: boolean;
+  favorite: boolean;
 }
 
 const MEDIA = Prisma.sql`a.kind IN ('photo', 'video', 'raw')`;
@@ -38,6 +39,7 @@ const TILE_COLUMNS = Prisma.sql`
   a.id, a.kind::text AS kind, a.original_name AS name, a.width, a.height,
   to_char(a.local_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') AS local_at,
   a.duration_ms, a.is_motion_photo, a.sha256, a.processed_at IS NULL AS pending,
+  a.favorite_at IS NOT NULL AS favorite,
   EXISTS (SELECT 1 FROM derivatives d WHERE d.asset_id = a.id AND d.variant = 'sm') AS has_thumb`;
 
 export const visible = (userId: string) =>
@@ -102,6 +104,7 @@ export class BrowseService {
         isMotionPhoto: row.is_motion_photo,
         thumb: row.has_thumb ? await this.urls.thumbs(userId, row.sha256) : null,
         pending: row.pending,
+        favorite: row.favorite,
       })),
     );
   }
@@ -175,6 +178,11 @@ export class BrowseService {
     if (query.from) conditions.push(Prisma.sql`a.local_at >= ${query.from}::timestamp`);
     if (query.to) conditions.push(Prisma.sql`a.local_at < ${addDays(query.to, 1)}::timestamp`);
     if (query.camera) conditions.push(Prisma.sql`a.camera_model = ${query.camera}`);
+    if (query.favorite) conditions.push(Prisma.sql`a.favorite_at IS NOT NULL`);
+    if (query.album) {
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM album_items ai WHERE ai.asset_id = a.id AND ai.album_id = ${query.album}::uuid)`);
+    }
     if (query.place) conditions.push(Prisma.sql`a.place_id = ANY(${query.place}::int[])`);
     if (query.source) {
       conditions.push(Prisma.sql`EXISTS (
@@ -270,6 +278,11 @@ export class BrowseService {
         where: { assetId, deletedAt: null },
         select: { folderId: true, name: true },
       });
+      const albums = await tx.albumItem.findMany({
+        where: { assetId },
+        select: { album: { select: { id: true, name: true } } },
+        orderBy: { album: { name: 'asc' } },
+      });
       const folderPaths = await this.folderPaths(
         tx,
         entries.map((entry) => entry.folderId),
@@ -308,6 +321,7 @@ export class BrowseService {
           folderId: entry.folderId,
           path: [folderPaths.get(entry.folderId), entry.name].filter(Boolean).join('/'),
         })),
+        albums: albums.map((item) => item.album),
         preview:
           variants.has('lg') && variants.has('md')
             ? {

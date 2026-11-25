@@ -7,6 +7,7 @@ export * from './sources';
 export * from './api/auth';
 export * from './api/uploads';
 export * from './api/library';
+export * from './api/albums';
 export * from './api/processing';
 export * from './api/downloads';
 export * from './api/export';

@@ -42,6 +42,10 @@ export const assetSearchQuery = z.object({
       ]),
     )
     .optional(),
+  /** Only what is in this album. */
+  album: z.uuid().optional(),
+  /** "1": only favourites. */
+  favorite: z.literal('1').optional(),
   cursor: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(120),
 });
@@ -59,6 +63,8 @@ export interface AssetSearchQuery {
   source?: string;
   /** "west,south,east,north" */
   bbox?: string;
+  album?: string;
+  favorite?: '1';
   cursor?: string;
   limit?: number;
 }
@@ -87,6 +93,7 @@ export interface AssetTile {
   thumb: MediaUrls | null;
   /** Not processed yet: its preview, size and capture details are still to come. */
   pending: boolean;
+  favorite: boolean;
 }
 
 export interface TimelineBucket {
@@ -138,6 +145,7 @@ export interface AssetDetail extends AssetTile {
   } | null;
   origins: { sourceId: string; path: string; modifiedAt: string | null }[];
   folders: { folderId: string; path: string }[];
+  albums: { id: string; name: string }[];
   preview: { lg: string; md: string } | null;
   /** Presigned, shown inline; for video playback and opening the original. */
   originalUrl: string;
