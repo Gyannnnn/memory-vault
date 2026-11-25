@@ -44,8 +44,8 @@ Runs on localhost for now; media via short-lived presigned S3 URLs (CloudFront a
 | Milestone                                  | Status                                 |
 | ------------------------------------------ | -------------------------------------- |
 | M0 Web foundation and security screens     | done (checked by the owner 2026-11-24) |
-| M1 Browse                                  | built, awaiting check-in               |
-| M2 Upload, video, downloads, motion photos | todo                                   |
+| M1 Browse                                  | done (checked by the owner 2026-11-25) |
+| M2 Upload, video, downloads, motion photos | built, awaiting check-in               |
 | M3 Organise, share and protect             | todo                                   |
 | M4 People, OCR, trips                      | todo                                   |
 | M5 Account continuity                      | todo                                   |
@@ -64,6 +64,16 @@ M1 follow-up (2026-11-24, after the first look at the real library): many 2026 p
 - Waiting jobs were reordered newest first, so the top of the timeline fills first.
 - Result: 0 files waiting, 0 failed jobs; `vault-admin integrity` healthy (20,346 in S3); 11,045 of 11,112 files with GPS have a place name. The other 67 carry a blank (0°, 0°) GPS fix.
 - Still to do: `vault upload` should keep a phone file's temporary copy until it is processed, so a big import doesn't leave a backlog again; failed jobs need a retry command, and the app should say when processing has stopped; ignore (0°, 0°) GPS positions.
+
+M2 delivered (2026-11-25):
+
+- **Video:** streaming versions (360p/720p/1080p HLS, single fragmented MP4 per rendition read by byte range, HDR tone-mapped) and the Vidstack player (hls.js bundled, no Cast). `vault-admin transcode-backfill` queued all 1,037 existing videos (572 from the laptop copy first); it runs in the background at low CPU priority, about a day of work, only while the laptop is on and awake.
+- **Motion photos:** the embedded clip becomes H.264 and plays on request in the viewer; all 23 in the library are done.
+- **Downloads:** each original under its own name from the viewer; zips of selected files or a whole folder (own zip writer: stored, exact size up front, zip64), with selection in Photos, Search and Folders (tick, shift-click range, Esc).
+- **Upload from the browser:** drag files or folders anywhere, or choose them; hashed in a Web Worker, known content skipped, multipart with per-part SHA-256, pause/resume/retry, resume after a reload; recorded under "Web uploads · browser".
+- **Export:** `vault export <folder>` writes every original into its original folders with name and date, each checked against its SHA-256, resumable, with `catalogue.json` and a README.
+- **Fixes on the way:** HEIC photos named `.jpg` (Instagram) now get previews; `stage-pending` waits for a disconnected phone instead of skipping files; motion clips run ahead of the video backlog.
+- **Notes:** the laptop restarted twice overnight (2026-11-25 00:21 and 09:42); Docker Desktop has to be started again after a restart, and the worker then carries on from its queue.
 
 Core (from the brief): browse, timeline, map, search and filters, folders, zip download, upload with progress, video playback (HLS + Vidstack), sharing links, statistics, People (faces), passkey sign-in screens.
 
@@ -120,6 +130,9 @@ Expo dev builds, approval-based sync, trip detection, junk review, native passke
 | 2026-11-24 | Email via Amazon SES (sandbox until a domain exists)                                                     | Owner's choice                                                                                                                                 |
 | 2026-11-24 | Deletion protection: S3 Object Lock, governance, 30-day default retention                                | Versions can't be deleted for 30 days even with a stolen key; also backs the 30-day trash                                                      |
 | 2026-11-24 | Process a phone backlog from USB copies (`vault phone stage-pending`), not S3 downloads                  | ~26 MB/s over USB vs ~0.5 MB/s down the line; copies verified by SHA-256 and deleted once processed                                            |
+| 2026-11-25 | HLS renditions as one fragmented MP4 each, addressed by byte range                                       | One object per rendition instead of hundreds of segments; one presigned link per playlist                                                      |
+| 2026-11-25 | Our own streaming zip writer (stored, zip64), not a zip library                                          | Exact size known before the first byte, so the browser shows real progress on a slow line; Python's zipfile checks it in tests                 |
+| 2026-11-25 | Vidstack with bundled hls.js and no Cast button                                                          | No third-party script or CDN request from the vault pages                                                                                      |
 
 ## Open questions
 

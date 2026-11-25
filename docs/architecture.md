@@ -23,14 +23,16 @@
 
 ## Storage layout
 
-| Key                                                  | Contents                                                   | Storage class                       |
-| ---------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------- |
-| `users/{userId}/originals/{sha[0:2]}/{sha256}.{ext}` | Untouched originals                                        | Intelligent-Tiering (instant tiers) |
-| `users/{userId}/thumbs/{sha256}/{sm,md,lg}.webp`     | 400/1080/2048 px previews, metadata stripped               | Intelligent-Tiering                 |
-| `users/{userId}/inbox/…`                             | Files dropped in directly; indexed and moved by the worker | —                                   |
-| `system/db-backups/{daily,monthly}/…`                | `pg_dump` custom-format backups                            | Intelligent-Tiering                 |
-| `system/catalog/{userId}/…jsonl.gz`                  | Every file, its locations and origins                      | Intelligent-Tiering                 |
-| `system/integrity/{date}.json`                       | Weekly database ↔ S3 check results                         | Intelligent-Tiering                 |
+| Key                                                   | Contents                                                   | Storage class                       |
+| ----------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------- |
+| `users/{userId}/originals/{sha[0:2]}/{sha256}.{ext}`  | Untouched originals                                        | Intelligent-Tiering (instant tiers) |
+| `users/{userId}/thumbs/{sha256}/{sm,md,lg}.webp`      | 400/1080/2048 px previews, metadata stripped               | Intelligent-Tiering                 |
+| `users/{userId}/streams/{sha256}/{360,720,1080}p.mp4` | Video renditions for streaming (fragmented MP4, HLS)       | Intelligent-Tiering                 |
+| `users/{userId}/streams/{sha256}/motion.mp4`          | A motion photo's clip, H.264                               | Intelligent-Tiering                 |
+| `users/{userId}/inbox/…`                              | Files dropped in directly; indexed and moved by the worker | —                                   |
+| `system/db-backups/{daily,monthly}/…`                 | `pg_dump` custom-format backups                            | Intelligent-Tiering                 |
+| `system/catalog/{userId}/…jsonl.gz`                   | Every file, its locations and origins                      | Intelligent-Tiering                 |
+| `system/integrity/{date}.json`                        | Weekly database ↔ S3 check results                         | Intelligent-Tiering                 |
 
 ## Data model
 
@@ -55,6 +57,16 @@
 | Recovery code                       | One of 10 printed codes        | Works without password, phone or email; each code works once     |
 
 Access tokens are EdDSA JWTs valid for 10 minutes. Refresh tokens rotate on every use and are stored only as hashes. Signing a device out takes effect immediately.
+
+## Video, motion photos, downloads (Phase 2, M2)
+
+- **Streaming versions.** A `transcode` job (after ingest; `vault-admin transcode-backfill` for older videos) makes 360p, 720p and 1080p H.264/AAC renditions, named by their short side and never larger than the original. One ffmpeg run decodes once, applies rotation and tone-maps HDR (PQ, HLG) to BT.709 after shrinking. Threads are capped so 4K HDR fits the Docker VM's memory, and ffmpeg runs at low CPU priority. Each rendition is a single fragmented MP4 that its HLS playlist addresses by byte range; the playlist, bandwidth and codecs are kept on the derivative row (`details`).
+- **Playback.** `GET /v1/assets/{id}/stream.m3u8` lists the renditions; `/stream/{quality}.m3u8` returns a rendition's playlist with a presigned link to its file, which the player reads by range straight from S3 (the bucket's CORS rule allows it). The web player is Vidstack with hls.js bundled (never loaded from a CDN) and no Cast button. Until a stream exists, the original plays.
+- **Queue order.** Transcode-queue priorities: 1 motion clips (seconds each), 2 videos with a local copy, 3 videos that must be downloaded. The worker looks for a local copy at each of the file's origins (laptop mount, `staging/{device}-{label}/`) before downloading.
+- **Motion photos.** The clip Samsung and Google append to a photo is found by its own `ftyp` box, measured by walking the MP4's top-level boxes (so a HEIC image or Samsung's trailer around it doesn't matter), and turned into an H.264 clip of up to 720p.
+- **Downloads.** Originals download under their own names (a presigned link with `Content-Disposition: attachment`). Zips of chosen files or a folder are prepared with `POST /v1/downloads` (files checked against the caller's library), then streamed by `GET /v1/downloads/{id}` straight from S3. The zip writer stores rather than compresses, so the exact size is known up front and sent as `Content-Length` (real progress in the browser). Zip64 takes over where needed, and a file that isn't its recorded size cuts the download off rather than leaving a corrupt archive.
+- **Uploads from the browser.** The web app uses the same upload API as the CLI. Each file is hashed in a Web Worker (hash-wasm, streaming); known content only gets its location recorded; new files go to S3 through presigned requests (parts with their own SHA-256). Choosing a file again after a reload continues from the parts S3 already has. Files are recorded under the source `web:browser`.
+- **Export.** `vault export <folder>` writes every original back into its source folders with its name and date (extra locations as hard links), checks each against its SHA-256, resumes with range requests, and adds `catalogue.json` and a README. It reads `GET /v1/export` (the library a page at a time, with presigned links).
 
 ## Upload flow
 

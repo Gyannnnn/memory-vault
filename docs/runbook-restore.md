@@ -70,9 +70,11 @@ aws s3api copy-object --bucket BUCKET --key users/{userId}/originals/ab/abcdefâ€
 
 Removing a delete marker (`aws s3api delete-object â€¦ --version-id <marker-id>`) also brings the object back.
 
-## 4. Export everything, without the app
+## 4. Export everything
 
-Originals are named by content hash. To get the original folder layout and names back:
+While the API runs, `pnpm vault export /path/to/folder` does all of this for you: every original in its original folders, with its name and date, each checked against its SHA-256, plus a `catalogue.json` and a README. It resumes if interrupted.
+
+Without the app, from S3 alone: originals are named by content hash. To get the original folder layout and names back:
 
 ```bash
 aws s3 cp s3://BUCKET/system/catalog/{userId}/latest.jsonl.gz . --profile <admin>

@@ -51,10 +51,16 @@ pnpm vault report --verify   # every file checked in S3; writes safe-to-delete l
 
 # Worker backlog: give it local copies of waiting phone files over USB instead of S3 downloads
 pnpm vault phone stage-pending --source phone:s21fe
+pnpm vault phone stage-pending --source phone:s21fe --for streams   # phone videos waiting for streaming versions
+
+# Your whole vault in a folder: original folders, names and dates, each file SHA-256 checked (resumable)
+pnpm vault export /path/to/folder
 
 # Upkeep
 pnpm vault-admin integrity | backup | catalog | rebuild-index
 pnpm vault-admin load-places   # place names for photos with GPS (GeoNames, CC BY 4.0)
+pnpm vault-admin transcode-backfill [--dry-run] [--limit N]   # streaming versions of existing videos
+pnpm vault-admin motion-backfill   # playable clips of existing motion photos
 pnpm test        # unit, integration and end-to-end tests (needs `docker compose --profile test up -d`)
 pnpm test:aws    # checks presigned checksums against the real bucket
 ```
