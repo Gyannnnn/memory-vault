@@ -16,6 +16,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { UploadButton, UploadPanel, UploadProgressPill } from '@/components/upload/upload-panel';
+import { UploadProvider } from '@/components/upload/upload-provider';
 import { authStep } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { isActive, libraryNav, manageNav, type NavItem } from './nav';
@@ -29,40 +31,47 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[232px_1fr]">
-      <a
-        href="#main"
-        className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm text-on-primary focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
-      >
-        Skip to content
-      </a>
+    <UploadProvider>
+      <div className="min-h-dvh lg:grid lg:grid-cols-[232px_1fr]">
+        <a
+          href="#main"
+          className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm text-on-primary focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        >
+          Skip to content
+        </a>
 
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r bg-surface lg:flex">
-        <Sidebar user={user} />
-      </aside>
+        <aside className="sticky top-0 hidden h-dvh flex-col border-r bg-surface lg:flex">
+          <Sidebar user={user} />
+        </aside>
 
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-surface/90 px-4 backdrop-blur lg:hidden">
-        <Link href="/" className="rounded-md">
-          <Brand />
-        </Link>
-        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon-lg" aria-label="Open menu">
-              <Menu />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[264px] gap-0 bg-surface p-0">
-            <SheetTitle className="sr-only">Menu</SheetTitle>
-            <SheetDescription className="sr-only">Go to a part of your library</SheetDescription>
-            <Sidebar user={user} onNavigate={() => setMenuOpen(false)} />
-          </SheetContent>
-        </Sheet>
-      </header>
+        <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-surface/90 px-4 backdrop-blur lg:hidden">
+          <Link href="/" className="rounded-md">
+            <Brand />
+          </Link>
+          <div className="flex items-center gap-1">
+            <UploadButton compact />
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon-lg" aria-label="Open menu">
+                  <Menu />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[264px] gap-0 bg-surface p-0">
+                <SheetTitle className="sr-only">Menu</SheetTitle>
+                <SheetDescription className="sr-only">Go to a part of your library</SheetDescription>
+                <Sidebar user={user} onNavigate={() => setMenuOpen(false)} />
+              </SheetContent>
+            </Sheet>
+          </div>
+        </header>
 
-      <main id="main" className="min-w-0">
-        {children}
-      </main>
-    </div>
+        <main id="main" className="min-w-0">
+          {children}
+        </main>
+      </div>
+      <UploadPanel />
+      <UploadProgressPill />
+    </UploadProvider>
   );
 }
 
@@ -74,6 +83,9 @@ function Sidebar({ user, onNavigate }: { user: ShellUser; onNavigate?: () => voi
         <Link href="/" className="rounded-md" onClick={onNavigate}>
           <Brand />
         </Link>
+      </div>
+      <div className="px-3 pb-2">
+        <UploadButton />
       </div>
       <nav aria-label="Main" className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-2">
         <NavGroup items={libraryNav} pathname={pathname} onNavigate={onNavigate} />

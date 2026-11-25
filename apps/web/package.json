@@ -8,7 +8,8 @@
     "dev": "pnpm assets && next dev --port 3000",
     "build": "pnpm assets && next build",
     "start": "next start --port 3000",
-    "typecheck": "pnpm assets && tsc --noEmit"
+    "typecheck": "pnpm assets && tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@memory-vault/api-client": "workspace:*",
@@ -20,6 +21,7 @@
     "@vidstack/react": "^1.15.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "hash-wasm": "^4.13.0",
     "hls.js": "^1.7.4",
     "lucide-react": ">=0.500.0",
     "maplibre-gl": "^6.18.0",
@@ -45,6 +47,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "tailwindcss": "^4.1.0",
-    "tsx": "^4.20.0"
+    "tsx": "^4.20.0",
+    "vitest": "^5.1.0"
   }
 }
