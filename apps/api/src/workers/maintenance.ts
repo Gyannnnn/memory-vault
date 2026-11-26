@@ -178,7 +178,11 @@ export async function runCatalogExport(ctx: MaintenanceContext): Promise<string[
     const { assets, folders } = await withUser(ctx.db, user.id, async (tx) => ({
       assets: await tx.asset.findMany({
         where: { status: 'verified' },
-        include: { origins: true, entries: { where: { deletedAt: null } } },
+        include: {
+          origins: true,
+          entries: { where: { deletedAt: null } },
+          albumItems: { select: { album: { select: { name: true } } } },
+        },
         orderBy: { id: 'asc' },
       }),
       folders: await tx.folder.findMany({ select: { id: true, parentId: true, name: true } }),
@@ -202,6 +206,9 @@ export async function runCatalogExport(ctx: MaintenanceContext): Promise<string[
         gps: asset.gpsLatitude !== null ? [asset.gpsLatitude, asset.gpsLongitude] : null,
         camera: [asset.cameraMake, asset.cameraModel].filter(Boolean).join(' ') || null,
         locations: asset.entries.map((entry) => `${pathOf(entry.folderId)}/${entry.name}`),
+        favoriteAt: asset.favoriteAt,
+        deletedAt: asset.deletedAt,
+        albums: asset.albumItems.map((item) => item.album.name),
         origins: asset.origins.map((origin) => ({
           source: origin.sourceId,
           path: origin.originalPath,

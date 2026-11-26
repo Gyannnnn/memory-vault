@@ -28,22 +28,27 @@ import type { UploadItem, UploadSnapshot, UploadStatus } from '@/lib/upload/engi
 import { cn } from '@/lib/utils';
 import { useUploads } from './upload-provider';
 
-type Filter = 'all' | 'active' | 'done' | 'duplicate' | 'failed';
+type Filter = 'all' | 'active' | 'done' | 'duplicate' | 'trashed' | 'deleted' | 'failed';
 
 const FILTERS: { key: Filter; label: string; statuses: UploadStatus[] }[] = [
   { key: 'all', label: 'All', statuses: [] },
   { key: 'active', label: 'In progress', statuses: ['queued', 'hashing', 'uploading', 'paused'] },
   { key: 'done', label: 'Uploaded', statuses: ['done'] },
   { key: 'duplicate', label: 'Already in vault', statuses: ['duplicate'] },
+  { key: 'trashed', label: 'In Trash', statuses: ['trashed'] },
+  { key: 'deleted', label: 'Deleted before', statuses: ['deleted'] },
   { key: 'failed', label: 'Failed', statuses: ['failed'] },
 ];
+
+/** Uploaded, or already in the vault (in Trash too). */
+const storedCount = (counts: UploadSnapshot['counts']) => counts.done + counts.duplicate + counts.trashed;
 
 const ROW_HEIGHT = 56;
 
 /** Overall state in a few words, for the dialog and the minimised card. */
 export function headline(snapshot: UploadSnapshot): string {
   const { counts } = snapshot;
-  const finished = counts.done + counts.duplicate;
+  const finished = storedCount(counts);
   const pending = counts.queued + counts.hashing + counts.uploading + counts.paused;
   const files = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'file' : 'files'}`;
   if (pending > 0) return `${snapshot.paused ? 'Paused' : 'Uploading'} ${files(pending)}`;
@@ -59,10 +64,12 @@ const timeLeft = (snapshot: UploadSnapshot): string | null => {
 /** "7 of 8 done · 120 MB of 1.2 GB · 3.2 MB/s · about 5 min left" */
 export function detail(snapshot: UploadSnapshot): string {
   const { counts } = snapshot;
-  const finished = counts.done + counts.duplicate;
+  const finished = storedCount(counts) + counts.deleted;
   const pending = counts.queued + counts.hashing + counts.uploading + counts.paused;
   if (pending === 0 && counts.failed > 0)
     return `${finished.toLocaleString()} done · ${counts.failed.toLocaleString()} failed. Check your connection, then retry.`;
+  if (pending === 0 && counts.deleted > 0)
+    return `${counts.deleted.toLocaleString()} you deleted from your vault before ${counts.deleted === 1 ? 'was' : 'were'} not uploaded.`;
   const parts = [`${formatBytes(snapshot.doneBytes)} of ${formatBytes(snapshot.totalBytes)}`];
   if (pending > 0)
     parts.unshift(`${finished.toLocaleString()} of ${(finished + pending).toLocaleString()} done`);
@@ -98,7 +105,12 @@ function KindIcon({ path }: { path: string }) {
   return <Icon className="size-5 shrink-0 text-ink-subtle" strokeWidth={1.6} aria-hidden="true" />;
 }
 
-function Status({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
+interface RowActions {
+  onRetry: () => void;
+  onUploadAnyway: () => void;
+}
+
+function Status({ item, onRetry, onUploadAnyway }: { item: UploadItem } & RowActions) {
   const text = 'text-xs tabular-nums';
   switch (item.status) {
     case 'done':
@@ -109,6 +121,14 @@ function Status({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
       );
     case 'duplicate':
       return <span className={cn(text, 'text-ink-muted')}>Already in vault</span>;
+    case 'trashed':
+      return <span className={cn(text, 'text-ink-muted')}>In Trash</span>;
+    case 'deleted':
+      return (
+        <Button size="sm" variant="outline" onClick={onUploadAnyway}>
+          Upload anyway
+        </Button>
+      );
     case 'failed':
       return (
         <Button size="sm" variant="outline" onClick={onRetry}>
@@ -130,7 +150,7 @@ function Status({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
   }
 }
 
-function Row({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
+function Row({ item, onRetry, onUploadAnyway }: { item: UploadItem } & RowActions) {
   const slash = item.path.lastIndexOf('/');
   const folder = slash > 0 ? item.path.slice(0, slash) : null;
   const showsBar = item.status === 'uploading' || item.status === 'hashing' || item.status === 'paused';
@@ -152,6 +172,17 @@ function Row({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
           <p className="truncate text-xs text-skip" title={item.error}>
             {item.error ?? 'Failed'}
           </p>
+        ) : item.status === 'deleted' ? (
+          <p className="truncate text-xs text-ink-muted">
+            You deleted this from your vault
+            {item.deletedOn
+              ? ` on ${new Date(item.deletedOn).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
+              : ''}
+          </p>
+        ) : item.status === 'trashed' ? (
+          <p className="truncate text-xs text-ink-muted">
+            In your vault’s Trash: restore it there to keep it
+          </p>
         ) : showsBar ? (
           <div className="mt-2 h-0.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
             <div
@@ -166,13 +197,21 @@ function Row({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
         )}
       </div>
       <div className="flex shrink-0 justify-end sm:min-w-24">
-        <Status item={item} onRetry={onRetry} />
+        <Status item={item} onRetry={onRetry} onUploadAnyway={onUploadAnyway} />
       </div>
     </div>
   );
 }
 
-function FileList({ items, onRetry }: { items: readonly UploadItem[]; onRetry: (id: string) => void }) {
+function FileList({
+  items,
+  onRetry,
+  onUploadAnyway,
+}: {
+  items: readonly UploadItem[];
+  onRetry: (id: string) => void;
+  onUploadAnyway: (id: string) => void;
+}) {
   const scroller = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- not compiled; nothing memoized receives it
   const virtualizer = useVirtualizer({
@@ -193,7 +232,11 @@ function FileList({ items, onRetry }: { items: readonly UploadItem[]; onRetry: (
               className="absolute inset-x-0"
               style={{ height: ROW_HEIGHT, transform: `translateY(${row.start}px)` }}
             >
-              <Row item={item} onRetry={() => onRetry(item.id)} />
+              <Row
+                item={item}
+                onRetry={() => onRetry(item.id)}
+                onUploadAnyway={() => onUploadAnyway(item.id)}
+              />
             </div>
           );
         })}
@@ -211,7 +254,7 @@ export function UploadDialog() {
   const progressId = useId();
   const { counts } = snapshot;
   const pending = counts.queued + counts.hashing + counts.uploading + counts.paused;
-  const finished = counts.done + counts.duplicate;
+  const finished = storedCount(counts) + counts.deleted;
   const hasItems = snapshot.items.length > 0;
   const percent = percentOf(snapshot);
 
@@ -229,12 +272,14 @@ export function UploadDialog() {
     // What needs attention first, then what's moving, then the rest in the order chosen.
     const rank: Record<UploadStatus, number> = {
       failed: 0,
+      deleted: 0,
       uploading: 1,
       hashing: 2,
       paused: 3,
       queued: 4,
       done: 5,
       duplicate: 6,
+      trashed: 6,
     };
     return items.sort((a, b) => rank[a.status] - rank[b.status]);
   }, [snapshot.items, active]);
@@ -376,7 +421,11 @@ export function UploadDialog() {
                 </div>
               </div>
 
-              <FileList items={shown} onRetry={(id) => manager.retry(id)} />
+              <FileList
+                items={shown}
+                onRetry={(id) => manager.retry(id)}
+                onUploadAnyway={(id) => manager.uploadAnyway(id)}
+              />
 
               <footer className="flex shrink-0 items-center justify-end gap-2 border-t px-6 py-3">
                 {pending > 0 && (

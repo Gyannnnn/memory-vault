@@ -19,7 +19,7 @@ import { MediaUrlSigner } from './media-urls';
 
 type SearchInput = z.output<typeof assetSearchQuery>;
 
-interface TileRow {
+export interface TileRow {
   id: string;
   kind: MediaKind;
   name: string;
@@ -35,7 +35,7 @@ interface TileRow {
 }
 
 const MEDIA = Prisma.sql`a.kind IN ('photo', 'video', 'raw')`;
-const TILE_COLUMNS = Prisma.sql`
+export const TILE_COLUMNS = Prisma.sql`
   a.id, a.kind::text AS kind, a.original_name AS name, a.width, a.height,
   to_char(a.local_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') AS local_at,
   a.duration_ms, a.is_motion_photo, a.sha256, a.processed_at IS NULL AS pending,
@@ -91,7 +91,7 @@ export class BrowseService {
     this.urls = new MediaUrlSigner(ctx);
   }
 
-  private async toTiles(userId: string, rows: TileRow[]): Promise<AssetTile[]> {
+  async toTiles(userId: string, rows: TileRow[]): Promise<AssetTile[]> {
     return Promise.all(
       rows.map(async (row) => ({
         id: row.id,
@@ -267,7 +267,12 @@ export class BrowseService {
 
   detail(userId: string, assetId: string): Promise<AssetDetail> {
     return withUser(this.ctx.db, userId, async (tx) => {
-      const [row] = await this.tileRows(tx, Prisma.sql`${visible(userId)} AND a.id = ${assetId}::uuid`, 1);
+      // Its owner can still open a photo in Trash (to look before restoring it).
+      const [row] = await this.tileRows(
+        tx,
+        Prisma.sql`a.user_id = ${userId}::uuid AND a.status = 'verified' AND a.id = ${assetId}::uuid`,
+        1,
+      );
       if (!row) throw notFound('Photo not found');
       // One query at a time: a transaction's connection must not run two at once.
       const asset = await tx.asset.findUniqueOrThrow({ where: { id: assetId } });
@@ -334,6 +339,7 @@ export class BrowseService {
         stream: streamQualities(variants),
         motionUrl: variants.has('motion') ? await this.urls.object(motionKey(userId, asset.sha256)) : null,
         processing: { done: asset.processedAt !== null, error: asset.processingError },
+        trashedAt: asset.deletedAt?.toISOString() ?? null,
       };
     });
   }
@@ -387,7 +393,8 @@ export class BrowseService {
       >`
         SELECT f.id, f.name,
           (SELECT count(*) FROM folders c WHERE c.parent_id = f.id AND c.deleted_at IS NULL)::int AS folder_count,
-          (SELECT count(*) FROM file_entries e WHERE e.folder_id = f.id AND e.deleted_at IS NULL)::int AS file_count,
+          (SELECT count(*) FROM file_entries e JOIN assets a ON a.id = e.asset_id
+            WHERE e.folder_id = f.id AND e.deleted_at IS NULL AND ${visible(userId)})::int AS file_count,
           cover.sha256 AS cover_sha256
         FROM folders f
         LEFT JOIN LATERAL (

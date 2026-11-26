@@ -47,6 +47,7 @@ model User {
   usageSnapshots UsageSnapshot[]
   albums         Album[]
   albumItems     AlbumItem[]
+  deletedContent DeletedContent[]
 
   @@map("users")
 }
@@ -204,7 +205,11 @@ model Asset {
   processedAt          DateTime?   @map("processed_at") @db.Timestamptz(3)
   processingError      String?     @map("processing_error")
   favoriteAt           DateTime?   @map("favorite_at") @db.Timestamptz(3)
+  /// In Trash since. Purged 30 days later, or sooner when `purgeRequestedAt` is set ("Delete now").
   deletedAt            DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  purgeRequestedAt     DateTime?   @map("purge_requested_at") @db.Timestamptz(3)
+  /// Why the last purge attempt failed (e.g. the storage permission is missing).
+  purgeError           String?     @map("purge_error")
   createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -226,6 +231,7 @@ model Asset {
   // Also defined in SQL (migration 20261124120000_browse): GIN indexes on search_tsv and
   // original_name (trigram), and the triggers that keep local_at and search_tsv current.
   // Migration 20261125120000_organise: a partial index on favourites.
+  // Migration 20261125140000_trash: a partial index on trashed assets.
   @@map("assets")
 }
 
@@ -396,4 +402,19 @@ model UsageSnapshot {
 
   @@unique([userId, takenOn])
   @@map("usage_snapshots")
+}
+
+/// Content the owner deleted for good (purged from Trash). Uploads report it instead of
+/// silently adding it back; uploading it again on purpose removes the row.
+model DeletedContent {
+  userId       String   @map("user_id") @db.Uuid
+  sha256       String
+  originalName String   @map("original_name")
+  sizeBytes    BigInt   @map("size_bytes")
+  trashedAt    DateTime @map("trashed_at") @db.Timestamptz(3)
+  purgedAt     DateTime @default(now()) @map("purged_at") @db.Timestamptz(3)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, sha256])
+  @@map("deleted_content")
 }

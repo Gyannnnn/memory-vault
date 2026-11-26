@@ -12,6 +12,10 @@ export const fileStatuses = [
   'excluded',
   'failed',
   'missing',
+  /** Stored, but in the vault's Trash. */
+  'in_trash',
+  /** Deleted for good from the vault by its owner; not uploaded again unless asked. */
+  'deleted_by_you',
 ] as const;
 export type FileStatus = (typeof fileStatuses)[number];
 
@@ -241,7 +245,7 @@ export class Manifest {
       const missing = this.db
         .prepare(
           `UPDATE files SET status = 'missing', updated_at = ?
-           WHERE source_id = ? AND last_seen_scan < ? AND status NOT IN ('uploaded', 'deduplicated', 'missing')`,
+           WHERE source_id = ? AND last_seen_scan < ? AND status NOT IN ('uploaded', 'deduplicated', 'missing', 'in_trash', 'deleted_by_you')`,
         )
         .run(Date.now(), sourceId, scanId);
       return { missing: Number(missing.changes) };
@@ -426,15 +430,20 @@ export class Manifest {
   }
 
   /** Files that may be uploaded now: hashed, selected, and either direct or approved in review. */
-  uploadCandidates(sourceId: SourceId, retryFailed: boolean): FileRow[] {
+  /**
+   * Files to upload or check again. Files in the vault's Trash are always checked again (they
+   * may have been restored or deleted since); files deleted for good only with `includeDeleted`.
+   */
+  uploadCandidates(sourceId: SourceId, retryFailed: boolean, includeDeleted = false): FileRow[] {
     return this.db
       .prepare(
         `SELECT * FROM files WHERE source_id = ? AND entry_type = 'file' AND selected = 1 AND sha256 IS NOT NULL
            AND (route = 'direct' OR decision = 'approved')
-           AND (status = 'pending' OR (? = 1 AND status = 'failed'))
+           AND (status IN ('pending', 'in_trash') OR (? = 1 AND status = 'failed')
+                OR (? = 1 AND status = 'deleted_by_you'))
          ORDER BY path`,
       )
-      .all(sourceId, retryFailed ? 1 : 0)
+      .all(sourceId, retryFailed ? 1 : 0, includeDeleted ? 1 : 0)
       .map(toFileRow);
   }
 

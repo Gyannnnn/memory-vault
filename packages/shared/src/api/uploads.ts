@@ -33,7 +33,14 @@ export const checkUploadsRequest = z.object({
     .min(1)
     .max(1000),
 });
-export const checkUploadsResponse = z.object({ existing: z.array(sha256HexSchema) });
+export const checkUploadsResponse = z.object({
+  /** Already stored (including what is in Trash): don't upload, just record where it was found. */
+  existing: z.array(sha256HexSchema),
+  /** The part of `existing` that is in Trash. */
+  trashed: z.array(sha256HexSchema).default([]),
+  /** Deleted for good by the owner: not stored, and not uploaded again unless asked. */
+  deleted: z.array(z.object({ sha256: sha256HexSchema, purgedAt: z.string() })).default([]),
+});
 
 export const recordOriginsRequest = z.object({
   items: z
@@ -107,13 +114,15 @@ export const verifyAssetsResponse = z.object({
   results: z.array(
     z.object({
       sha256: sha256HexSchema,
-      status: z.enum(['verified', 'missing', 'mismatch', 'unknown']),
+      /** `trashed`: in Trash, still stored; `deleted`: deleted for good by the owner. */
+      status: z.enum(['verified', 'missing', 'mismatch', 'unknown', 'trashed', 'deleted']),
       detail: z.string().optional(),
     }),
   ),
 });
 
 export type CheckUploadsRequest = z.infer<typeof checkUploadsRequest>;
+export type CheckUploadsResponse = z.infer<typeof checkUploadsResponse>;
 export type RecordOriginsRequest = z.infer<typeof recordOriginsRequest>;
 export type CreateUploadRequest = z.infer<typeof createUploadRequest>;
 export type CreateUploadResponse = z.infer<typeof createUploadResponse>;

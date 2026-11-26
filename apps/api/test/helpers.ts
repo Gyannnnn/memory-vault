@@ -26,6 +26,11 @@ export class FakeJobs implements Jobs {
     this.motions.push(job);
     return Promise.resolve();
   }
+  readonly purges: string[] = [];
+  purge(userId: string): Promise<void> {
+    this.purges.push(userId);
+    return Promise.resolve();
+  }
   close(): Promise<void> {
     return Promise.resolve();
   }

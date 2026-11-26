@@ -146,6 +146,8 @@ export interface AssetDetail extends AssetTile {
   origins: { sourceId: string; path: string; modifiedAt: string | null }[];
   folders: { folderId: string; path: string }[];
   albums: { id: string; name: string }[];
+  /** In Trash since, or null. */
+  trashedAt: string | null;
   preview: { lg: string; md: string } | null;
   /** Presigned, shown inline; for video playback and opening the original. */
   originalUrl: string;

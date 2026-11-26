@@ -17,6 +17,10 @@ interface Session {
 /** The upload API and S3, as far as the browser can tell: same answers, same checks. */
 class FakeVault implements UploadTransport {
   readonly stored = new Map<string, Buffer>();
+  /** Stored, but in Trash. */
+  readonly trashed = new Set<string>();
+  /** Deleted for good: content hash → when. */
+  readonly deleted = new Map<string, string>();
   readonly paths: string[] = [];
   readonly sessions = new Map<string, Session>();
   readonly puts: string[] = [];
@@ -43,6 +47,14 @@ class FakeVault implements UploadTransport {
 
   private answer<T>(path: string, init: { method?: string; body?: unknown }): T {
     const body = init.body as Record<string, unknown> | undefined;
+    if (path === '/uploads/check') {
+      const [{ sha256 }] = (body as { items: { sha256: string }[] }).items as [{ sha256: string }];
+      return {
+        existing: this.stored.has(sha256) ? [sha256] : [],
+        trashed: this.trashed.has(sha256) ? [sha256] : [],
+        deleted: this.deleted.has(sha256) ? [{ sha256, purgedAt: this.deleted.get(sha256)! }] : [],
+      } as T;
+    }
     if (path === '/uploads') {
       const { sha256, size, origin } = body as { sha256: string; size: number; origin: { path: string } };
       if (this.stored.has(sha256)) {
@@ -211,6 +223,32 @@ describe('browser uploads', () => {
     expect(snapshot.items.map((item) => item.status).sort()).toEqual(['done', 'duplicate']);
     expect(vault.puts).toHaveLength(1);
     expect(vault.paths.sort()).toEqual(['One/a.jpg', 'Two/b.jpg']);
+  });
+
+  it('says what is in Trash or was deleted before, and uploads the deleted one only when asked', async () => {
+    const vault = new FakeVault();
+    const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+    vault.stored.set(sha('in the bin'), Buffer.from('in the bin'));
+    vault.trashed.add(sha('in the bin'));
+    vault.deleted.set(sha('gone for good'), '2026-11-20T10:00:00.000Z');
+    const manager = new UploadManager(vault, { sourceId: 'web:browser', files: 2, parts: 2 });
+    manager.add([
+      { file: file('bin.jpg', 'in the bin'), path: 'bin.jpg' },
+      { file: file('gone.jpg', 'gone for good'), path: 'gone.jpg' },
+    ]);
+    const first = await settled(manager);
+    expect(first.items.map((item) => [item.path, item.status, item.deletedOn])).toEqual([
+      ['bin.jpg', 'trashed', undefined],
+      ['gone.jpg', 'deleted', '2026-11-20T10:00:00.000Z'],
+    ]);
+    expect(vault.stored.has(sha('gone for good'))).toBe(false);
+    expect(first.doneBytes).toBe(first.totalBytes);
+
+    manager.uploadAnyway(first.items[1]!.id);
+    const second = await settled(manager);
+    expect(vault.puts).toHaveLength(1);
+    expect(second.items[1]!.status).toBe('done');
+    expect(vault.stored.get(sha('gone for good'))?.toString()).toBe('gone for good');
   });
 
   it('marks a failed file, and retries it on request', async () => {

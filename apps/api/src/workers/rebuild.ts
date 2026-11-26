@@ -1,7 +1,7 @@
 import { gunzipSync } from 'node:zlib';
 import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import type { AppContext } from '../context';
-import { withUser } from '../db';
+import { newId, withUser } from '../db';
 import { recordOrigin } from '../library/folders';
 import { parseKey } from '../storage/keys';
 import type { Jobs } from './queues';
@@ -10,6 +10,10 @@ import { adoptOriginal } from './s3-events';
 interface CatalogLine {
   sha256: string;
   origins: { source: string; path: string; modifiedAt: string | null }[];
+  /** Since M3; older catalogues don't have them. */
+  favoriteAt?: string | null;
+  deletedAt?: string | null;
+  albums?: string[];
 }
 
 /**
@@ -58,6 +62,25 @@ export async function rebuildIndex(
           where: { userId_sha256: { userId, sha256: line.sha256 } },
         });
         if (!asset) return;
+        if (line.favoriteAt || line.deletedAt) {
+          await tx.asset.update({
+            where: { id: asset.id },
+            data: {
+              ...(line.favoriteAt ? { favoriteAt: new Date(line.favoriteAt) } : {}),
+              ...(line.deletedAt ? { deletedAt: new Date(line.deletedAt) } : {}),
+            },
+          });
+        }
+        for (const name of line.albums ?? []) {
+          const album =
+            (await tx.album.findFirst({ where: { userId, name } })) ??
+            (await tx.album.create({ data: { id: newId(), userId, name } }));
+          await tx.albumItem.upsert({
+            where: { albumId_assetId: { albumId: album.id, assetId: asset.id } },
+            create: { albumId: album.id, assetId: asset.id, userId },
+            update: {},
+          });
+        }
         for (const origin of line.origins) {
           await recordOrigin(tx, userId, asset.id, {
             sourceId: origin.source,
@@ -72,5 +95,13 @@ export async function rebuildIndex(
     if ((error as { name?: string }).name !== 'NoSuchKey') throw error;
     onProgress('no catalogue export found; only the locations stored on each object were restored');
   }
+  // Content that is back in the bucket (e.g. recovered from a delete marker) is no longer "deleted by you".
+  await withUser(
+    ctx.db,
+    userId,
+    (tx) =>
+      tx.$executeRaw`DELETE FROM deleted_content dc USING assets a
+      WHERE dc.user_id = ${userId}::uuid AND a.user_id = dc.user_id AND a.sha256 = dc.sha256`,
+  );
   return { adopted, locations };
 }

@@ -136,6 +136,7 @@ program
   .description('Upload scanned sources: resumable, checksum-verified, deduplicated')
   .argument('[sources...]', 'source ids, e.g. laptop:s21fe phone:s21fe')
   .option('--retry-failed', 'retry files that failed in an earlier run')
+  .option('--include-deleted', 'also upload files you deleted for good from the vault before')
   .option('--no-rescan', 'skip re-scanning local sources before uploading')
   .option('--keep-staging', 'keep copies pulled from the phone after they upload')
   .option('--parts <n>', 'upload parts in flight', (value) => Number.parseInt(value, 10), 6)
@@ -145,6 +146,7 @@ program
       sources: string[],
       options: {
         retryFailed?: boolean;
+        includeDeleted?: boolean;
         rescan: boolean;
         keepStaging?: boolean;
         parts: number;
@@ -176,6 +178,7 @@ program
           sourceIds: ids,
           apiUrl: config.apiUrl,
           retryFailed: Boolean(options.retryFailed),
+          includeDeleted: Boolean(options.includeDeleted),
           parallelParts: options.parts,
           parallelFiles: options.files,
           stagePhoneFile: createPhoneStager(manifest, { keepStaging: Boolean(options.keepStaging) }),

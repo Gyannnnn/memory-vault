@@ -12,10 +12,12 @@ import {
   processingStatusRequest,
   recordOriginsRequest,
   timelineMonthParam,
+  trashPageQuery,
+  trashRequest,
   verifyAssetsRequest,
 } from '@memory-vault/shared';
 import type { AppContext } from '../context';
-import { authOf } from '../http/auth-middleware';
+import { authOf, requestMeta } from '../http/auth-middleware';
 import { notFound, parse } from '../http/errors';
 import { UploadService } from '../uploads/service';
 import { AlbumService } from './albums';
@@ -23,6 +25,7 @@ import { BrowseService } from './browse';
 import { ExportService } from './export';
 import { ProcessingService } from './processing';
 import { PLAYLIST_TYPE, StreamService } from './streams';
+import { TrashService } from './trash';
 
 const folderQuery = z.object({
   cursor: z.string().max(300).optional(),
@@ -37,6 +40,7 @@ export function libraryRoutes(ctx: AppContext): Router {
   const streams = new StreamService(ctx);
   const exports = new ExportService(ctx);
   const albums = new AlbumService(ctx);
+  const trash = new TrashService(ctx);
 
   router.post('/assets/origins', async (request, response) => {
     const { items } = parse(recordOriginsRequest, request.body);
@@ -51,6 +55,26 @@ export function libraryRoutes(ctx: AppContext): Router {
   router.post('/assets/favorite', async (request, response) => {
     const { ids, favorite } = parse(favoriteRequest, request.body);
     response.json(await albums.setFavorite(authOf(request).userId, ids, favorite));
+  });
+
+  router.post('/assets/trash', async (request, response) => {
+    const { ids } = parse(trashRequest, request.body);
+    response.json(await trash.trash(authOf(request).userId, ids, requestMeta(request)));
+  });
+
+  router.post('/assets/restore', async (request, response) => {
+    const { ids } = parse(trashRequest, request.body);
+    response.json(await trash.restore(authOf(request).userId, ids, requestMeta(request)));
+  });
+
+  router.get('/trash', async (request, response) => {
+    const { cursor, limit } = parse(trashPageQuery, request.query);
+    response.json(await trash.list(authOf(request).userId, cursor, limit));
+  });
+
+  router.post('/trash/delete', async (request, response) => {
+    const { ids } = parse(trashRequest, request.body);
+    response.json(await trash.requestPurge(authOf(request).userId, ids, requestMeta(request)));
   });
 
   router.get('/albums', async (request, response) => {

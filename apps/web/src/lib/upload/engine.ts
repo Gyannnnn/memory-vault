@@ -1,14 +1,26 @@
-import { mimeTypeOf } from '@memory-vault/shared';
+import { mimeTypeOf, type CheckUploadsResponse } from '@memory-vault/shared';
 
 /**
  * Uploads from the browser, through the same API as the CLI: every file is hashed (SHA-256)
- * first; content already in the vault only has its location recorded; new content goes
+ * first; content already in the vault only has its location recorded (and content in the
+ * vault's Trash, or deleted from it for good, is reported, not added again); new content goes
  * straight to S3 through presigned requests, in parts for large files. A multipart upload
  * that was interrupted (even by a reload) carries on from the parts S3 already holds once
  * the same file is chosen again. Plain TypeScript, so it can be tested without a browser.
  */
 
-export type UploadStatus = 'queued' | 'hashing' | 'uploading' | 'paused' | 'done' | 'duplicate' | 'failed';
+export type UploadStatus =
+  | 'queued'
+  | 'hashing'
+  | 'uploading'
+  | 'paused'
+  | 'done'
+  | 'duplicate'
+  /** Already stored, but in the vault's Trash. */
+  | 'trashed'
+  /** Deleted for good from the vault before; not uploaded unless asked (`uploadAnyway`). */
+  | 'deleted'
+  | 'failed';
 
 export interface UploadItem {
   id: string;
@@ -22,6 +34,8 @@ export interface UploadItem {
   /** Bytes in S3 so far (parts already there when resuming count too). */
   sent: number;
   error?: string;
+  /** For `deleted`: when it was deleted from the vault (ISO). */
+  deletedOn?: string;
 }
 
 export interface UploadSnapshot {
@@ -79,7 +93,8 @@ export interface UploadOptions {
   parts: number;
 }
 
-const FINAL: ReadonlySet<UploadStatus> = new Set(['done', 'duplicate', 'failed']);
+const FINAL: ReadonlySet<UploadStatus> = new Set(['done', 'duplicate', 'trashed', 'deleted', 'failed']);
+const SETTLED: ReadonlySet<UploadStatus> = new Set(['done', 'duplicate', 'trashed', 'deleted']);
 const HALF_LIFE_SECONDS = 4;
 
 interface Entry {
@@ -87,6 +102,8 @@ interface Entry {
   file: File;
   sha256?: string;
   controller?: AbortController;
+  /** Upload even if it was deleted from the vault before. */
+  force?: boolean;
 }
 
 export class UploadManager {
@@ -173,11 +190,20 @@ export class UploadManager {
     this.pump();
   }
 
-  /** Forgets finished files (done, already in the vault); failed ones stay to be retried. */
+  /** A file deleted from the vault before: upload it after all. */
+  uploadAnyway(id: string): void {
+    const entry = this.entries.find((candidate) => candidate.item.id === id);
+    if (!entry || entry.item.status !== 'deleted') return;
+    entry.force = true;
+    entry.item = { ...entry.item, status: 'queued', deletedOn: undefined };
+    this.changed();
+    this.pump();
+  }
+
+  /** Forgets settled files (uploaded, already in the vault, in Trash, deleted before); failed ones stay. */
   clearFinished(): void {
     for (let index = this.entries.length - 1; index >= 0; index -= 1) {
-      const status = this.entries[index]!.item.status;
-      if (status === 'done' || status === 'duplicate') this.entries.splice(index, 1);
+      if (SETTLED.has(this.entries[index]!.item.status)) this.entries.splice(index, 1);
     }
     this.changed();
   }
@@ -240,7 +266,21 @@ export class UploadManager {
 
   private async upload(entry: Entry, sha256: string, signal: AbortSignal): Promise<void> {
     const { file } = entry;
+    // Before anything is awaited: the queue must not pick this file a second time.
     this.update(entry, { status: 'uploading' });
+    const check = await this.transport.api<CheckUploadsResponse>('/uploads/check', {
+      method: 'POST',
+      body: { items: [{ sha256, size: file.size }] },
+    });
+    signal.throwIfAborted();
+    const deleted = check.existing.includes(sha256)
+      ? undefined
+      : check.deleted.find((row) => row.sha256 === sha256);
+    if (deleted && !entry.force) {
+      this.update(entry, { status: 'deleted', deletedOn: deleted.purgedAt });
+      return;
+    }
+    const inTrash = check.trashed.includes(sha256);
     const created = await this.transport.api<CreateResponse>('/uploads', {
       method: 'POST',
       body: {
@@ -257,7 +297,7 @@ export class UploadManager {
     signal.throwIfAborted();
 
     if (created.mode === 'exists') {
-      this.update(entry, { status: 'duplicate', sent: file.size });
+      this.update(entry, { status: inTrash ? 'trashed' : 'duplicate', sent: file.size });
       return;
     }
     if (created.mode === 'single') {
@@ -336,17 +376,30 @@ export class UploadManager {
 
   private build(): UploadSnapshot {
     const items = this.entries.map((entry) => entry.item);
-    const counts = { queued: 0, hashing: 0, uploading: 0, paused: 0, done: 0, duplicate: 0, failed: 0 };
+    const counts = {
+      queued: 0,
+      hashing: 0,
+      uploading: 0,
+      paused: 0,
+      done: 0,
+      duplicate: 0,
+      trashed: 0,
+      deleted: 0,
+      failed: 0,
+    };
     let totalBytes = 0;
     let doneBytes = 0;
     for (const item of items) {
       counts[item.status] += 1;
       if (item.status === 'failed') continue;
       totalBytes += item.size;
-      doneBytes += item.status === 'done' || item.status === 'duplicate' ? item.size : item.sent;
+      doneBytes += SETTLED.has(item.status) ? item.size : item.sent;
     }
     // Upload speed, smoothed: only bytes actually sent count, not files already in the vault.
-    const sentNow = items.reduce((sum, item) => sum + (item.status === 'duplicate' ? 0 : item.sent), 0);
+    const sentNow = items.reduce(
+      (sum, item) => sum + (item.status === 'duplicate' || item.status === 'trashed' ? 0 : item.sent),
+      0,
+    );
     const now = this.now();
     if (this.lastSample.at === 0) this.lastSample = { at: now, bytes: sentNow };
     const elapsed = (now - this.lastSample.at) / 1000;

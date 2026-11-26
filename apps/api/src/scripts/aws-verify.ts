@@ -10,6 +10,7 @@ import {
   GetBucketPolicyCommand,
   GetBucketVersioningCommand,
   GetObjectCommand,
+  GetObjectLockConfigurationCommand,
   GetPublicAccessBlockCommand,
   HeadObjectCommand,
   ListBucketIntelligentTieringConfigurationsCommand,
@@ -104,6 +105,25 @@ await check('ACLs disabled (bucket owner enforced)', 'B1', async () => {
 await check('versioning enabled', 'B1', async () => {
   const { Status } = await s3.send(new GetBucketVersioningCommand({ Bucket }));
   return Status === 'Enabled' ? true : `versioning is ${Status ?? 'off'}`;
+});
+
+// Phase 2 (M3): deletion protection. Guide: docs/setup/phase-2-aws-setup.md.
+await check('Object Lock on, governance mode, 30 days by default', 'P2 §1', async () => {
+  try {
+    const { ObjectLockConfiguration: lock } = await s3.send(
+      new GetObjectLockConfigurationCommand({ Bucket }),
+    );
+    const retention = lock?.Rule?.DefaultRetention;
+    if (lock?.ObjectLockEnabled !== 'Enabled') return 'Object Lock is not enabled';
+    if (retention?.Mode !== 'GOVERNANCE' || retention.Days !== 30)
+      return `default retention is ${retention?.Mode ?? 'not set'}${retention?.Days ? `, ${retention.Days} days` : ''}`;
+    return true;
+  } catch (error) {
+    const name = errorName(error);
+    if (name === 'ObjectLockConfigurationNotFoundError') return 'Object Lock is not enabled';
+    if (name === 'AccessDenied') return 'cannot read the Object Lock setting: update the policy';
+    throw error;
+  }
 });
 
 await check('default encryption is SSE-S3', 'B1', async () => {
@@ -225,9 +245,10 @@ await check('bucket sends object-created events under users/ to the queue', 'D3'
 const body = `memory-vault verify ${new Date().toISOString()}`;
 const sha256 = createHash('sha256').update(body).digest('base64');
 const probeKey = `users/_verify/inbox/${randomUUID()}.txt`;
+let probeVersion: string | undefined;
 
 await check('upload with SHA-256 checksum into Intelligent-Tiering, read back and verify', 'E2', async () => {
-  await s3.send(
+  const put = await s3.send(
     new PutObjectCommand({
       Bucket,
       Key: probeKey,
@@ -237,6 +258,7 @@ await check('upload with SHA-256 checksum into Intelligent-Tiering, read back an
       ContentType: 'text/plain',
     }),
   );
+  probeVersion = put.VersionId;
   const head = await s3.send(new HeadObjectCommand({ Bucket, Key: probeKey, ChecksumMode: 'ENABLED' }));
   if (head.ChecksumSHA256 !== sha256) return `S3 reports checksum ${head.ChecksumSHA256}`;
   if (head.StorageClass !== 'INTELLIGENT_TIERING') return `stored as ${head.StorageClass ?? 'STANDARD'}`;
@@ -274,15 +296,44 @@ await check('S3 event for the test object arrives on the queue', 'D2–D3', asyn
   return 'no event within 60 seconds';
 });
 
+await check('new objects are locked (governance) for 30 days', 'P2 §1', async () => {
+  const head = await s3.send(new HeadObjectCommand({ Bucket, Key: probeKey }));
+  if (head.ObjectLockMode !== 'GOVERNANCE')
+    return `lock mode ${head.ObjectLockMode ?? 'not shown'} (Object Lock off, or s3:GetObjectRetention missing)`;
+  const days = (head.ObjectLockRetainUntilDate!.getTime() - Date.now()) / 86_400_000;
+  return days > 29 && days <= 30.5 ? true : `kept for ${days.toFixed(1)} days`;
+});
+
 await check('app user may delete inbox objects (cleans up the test object)', 'E2', async () => {
   await s3.send(new DeleteObjectCommand({ Bucket, Key: probeKey }));
   return true;
 });
 
-await check('app user cannot delete originals', 'E2', async () => {
+await check('app user can delete originals, which only adds a delete marker (Trash)', 'P2 §2', async () => {
   try {
-    await s3.send(new DeleteObjectCommand({ Bucket, Key: 'users/_verify/originals/does-not-exist' }));
-    return 'delete on originals/ was allowed; add the NeverDeleteOriginals statement';
+    const result = await s3.send(
+      new DeleteObjectCommand({ Bucket, Key: `users/_verify/originals/${randomUUID()}` }),
+    );
+    return result.DeleteMarker ? true : 'no delete marker was made: is versioning on?';
+  } catch (error) {
+    return errorName(error) === 'AccessDenied'
+      ? 'deleting under originals/ is refused: update the policy'
+      : `unexpected ${errorName(error)}`;
+  }
+});
+
+await check('app user cannot delete a version, even bypassing governance', 'P2 §2', async () => {
+  if (!probeVersion) return 'no test object version to try (the upload check failed)';
+  try {
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket,
+        Key: probeKey,
+        VersionId: probeVersion,
+        BypassGovernanceRetention: true,
+      }),
+    );
+    return 'a version was deleted: the policy must deny s3:DeleteObjectVersion and s3:BypassGovernanceRetention';
   } catch (error) {
     return errorName(error) === 'AccessDenied' ? true : `unexpected ${errorName(error)}`;
   }

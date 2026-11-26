@@ -18,12 +18,12 @@ export function uploadRoutes(ctx: AppContext): Router {
 
   router.post('/check', async (request, response) => {
     const { items } = parse(checkUploadsRequest, request.body);
-    response.json({
-      existing: await uploads.check(
+    response.json(
+      await uploads.check(
         authOf(request).userId,
         items.map((item) => item.sha256),
       ),
-    });
+    );
   });
 
   router.post('/', async (request, response) => {

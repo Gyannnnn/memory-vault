@@ -11,6 +11,8 @@ import { Manifest } from '../../../cli/src/manifest/manifest';
 import { buildReconciliation } from '../../../cli/src/report/reconcile';
 import { runUpload } from '../../../cli/src/upload/engine';
 import { createHarness, signUp, type Harness } from '../../test/helpers';
+import { withUser } from '../db';
+import { purgeTrash } from '../library/trash';
 
 vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
@@ -18,6 +20,7 @@ let harness: Harness;
 let server: ReturnType<Harness['app']['listen']>;
 let baseUrl: string;
 let tokens: StoredTokens;
+let userId: string;
 
 const store = {
   load: () => tokens,
@@ -33,6 +36,7 @@ beforeAll(async () => {
   server = harness.app.listen(0);
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const user = await signUp(harness, 'e2e@example.com');
+  userId = user.userId;
   const me = await harness.ctx.db.user.findUniqueOrThrow({ where: { id: user.userId } });
   tokens = {
     accessToken: user.accessToken,
@@ -131,5 +135,85 @@ describe('vault scan + upload, end to end', () => {
       'Trip/IMG_1.jpg',
       'WhatsApp Images/IMG-20240101-WA0001.jpg',
     ]);
+  });
+});
+
+describe('vault upload and the vault’s Trash', () => {
+  const sha = (data: Buffer) => createHash('sha256').update(data).digest('hex');
+  const idOf = (content: Buffer) =>
+    withUser(harness.ctx.db, userId, (tx) =>
+      tx.asset.findFirstOrThrow({ where: { sha256: sha(content) } }),
+    ).then((asset) => asset.id);
+  const post = (path: string, body: object) =>
+    fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tokens.accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('reports trashed and deleted content instead of re-adding it, and re-adds it when asked', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'vault-trash-'));
+    mkdirSync(join(root, 'Camera'));
+    const [kept, trashed, deleted] = [randomBytes(2100), randomBytes(2200), randomBytes(2300)];
+    writeFileSync(join(root, 'Camera/kept.jpg'), kept);
+    writeFileSync(join(root, 'Camera/trashed.jpg'), trashed);
+    writeFileSync(join(root, 'Camera/deleted.jpg'), deleted);
+    const manifest = new Manifest(':memory:');
+    const api = createApiClient({ baseUrl, tokens: store });
+    const options = {
+      sourceIds: ['laptop:trash'],
+      apiUrl: baseUrl,
+      retryFailed: false,
+      parallelParts: 2,
+      parallelFiles: 2,
+      stagePhoneFile: noPhone,
+    };
+    await scanLocalSource(manifest, 'laptop:trash', root);
+    expect(await runUpload(manifest, api, options)).toMatchObject({ uploaded: 3, failed: 0 });
+
+    // In the vault: one to Trash, one deleted for good.
+    await post('/v1/assets/trash', { ids: [await idOf(trashed), await idOf(deleted)] });
+    await post('/v1/trash/delete', { ids: [await idOf(deleted)] });
+    expect(await purgeTrash(harness.ctx, { userId })).toEqual({ purged: 1, failed: 0 });
+
+    const report = await buildReconciliation(manifest, ['laptop:trash'], api);
+    const source = report.sources[0]!;
+    expect(report.verification?.problems).toEqual([]);
+    expect(report.total.invariantHolds).toBe(true);
+    expect([
+      source.buckets.uploaded.files,
+      source.buckets.in_trash.files,
+      source.buckets.deleted_by_you.files,
+    ]).toEqual([1, 1, 1]);
+    expect(source.safeToDelete).toEqual(['Camera/kept.jpg']);
+
+    // The same content turns up again in another folder.
+    mkdirSync(join(root, 'Copies'));
+    writeFileSync(join(root, 'Copies/trashed.jpg'), trashed);
+    writeFileSync(join(root, 'Copies/deleted.jpg'), deleted);
+    await scanLocalSource(manifest, 'laptop:trash', root);
+    // (The first copies stay "uploaded" in the manifest; `vault report --verify` shows them as above.)
+    expect(await runUpload(manifest, api, options)).toMatchObject({
+      uploaded: 0,
+      inTrash: 1,
+      deletedByYou: 1,
+      failed: 0,
+    });
+    expect(manifest.files('laptop:trash').find((row) => row.path === 'Copies/deleted.jpg')).toMatchObject({
+      status: 'deleted_by_you',
+      error: expect.stringContaining('--include-deleted'),
+    });
+
+    // Restored in the vault: the next run notices. Asked to: the deleted one comes back.
+    await post('/v1/assets/restore', { ids: [await idOf(trashed)] });
+    expect(await runUpload(manifest, api, { ...options, includeDeleted: true })).toMatchObject({
+      uploaded: 1,
+      deduplicated: 1,
+      inTrash: 0,
+      deletedByYou: 0,
+      failed: 0,
+    });
+    const check = await api.checkUploads([{ sha256: sha(deleted), size: deleted.length }]);
+    expect(check).toEqual({ existing: [sha(deleted)], trashed: [], deleted: [] });
   });
 });

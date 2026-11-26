@@ -19,6 +19,8 @@ export interface Jobs {
   transcode(job: TranscodeJob, options?: { priority?: number }): Promise<void>;
   /** The playable clip of a motion photo (same queue as videos; short). */
   motion(job: TranscodeJob): Promise<void>;
+  /** Deletes for good what is due in this user's Trash ("Delete now"); idempotent. */
+  purge(userId: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -31,6 +33,7 @@ export const QUEUE = {
 export function createJobs(connection: Redis): Jobs {
   const ingest = new Queue<IngestJob>(QUEUE.ingest, { connection });
   const transcode = new Queue<TranscodeJob>(QUEUE.transcode, { connection });
+  const maintenance = new Queue(QUEUE.maintenance, { connection });
   return {
     async ingest(job) {
       await ingest.add('ingest', job, {
@@ -62,8 +65,20 @@ export function createJobs(connection: Redis): Jobs {
         priority: 1,
       });
     },
+    async purge(userId) {
+      await maintenance.add(
+        'trash-purge',
+        { userId },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 60_000 },
+          removeOnComplete: 100,
+          removeOnFail: 100,
+        },
+      );
+    },
     async close() {
-      await Promise.all([ingest.close(), transcode.close()]);
+      await Promise.all([ingest.close(), transcode.close(), maintenance.close()]);
     },
   };
 }

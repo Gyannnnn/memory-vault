@@ -12,6 +12,7 @@ import {
   fileNameOf,
   mediaKindOf,
   uploadPlan,
+  type CheckUploadsResponse,
   type CompleteUploadResponse,
   type CreateUploadRequest,
   type CreateUploadResponse,
@@ -55,14 +56,23 @@ export class UploadService {
     return this.ctx.env.S3_BUCKET;
   }
 
-  async check(userId: string, sha256s: string[]): Promise<string[]> {
-    const assets = await withUser(this.ctx.db, userId, (tx) =>
-      tx.asset.findMany({
+  /** What of this content is stored (and which of that is in Trash), and what the owner deleted for good. */
+  async check(userId: string, sha256s: string[]): Promise<CheckUploadsResponse> {
+    return withUser(this.ctx.db, userId, async (tx) => {
+      const assets = await tx.asset.findMany({
         where: { userId, sha256: { in: sha256s }, status: 'verified' },
-        select: { sha256: true },
-      }),
-    );
-    return assets.map((asset) => asset.sha256);
+        select: { sha256: true, deletedAt: true },
+      });
+      const deleted = await tx.deletedContent.findMany({
+        where: { userId, sha256: { in: sha256s } },
+        select: { sha256: true, purgedAt: true },
+      });
+      return {
+        existing: assets.map((asset) => asset.sha256),
+        trashed: assets.filter((asset) => asset.deletedAt).map((asset) => asset.sha256),
+        deleted: deleted.map((row) => ({ sha256: row.sha256, purgedAt: row.purgedAt.toISOString() })),
+      };
+    });
   }
 
   async recordOrigins(
@@ -366,6 +376,8 @@ export class UploadService {
         where: { id: session.id },
         data: { status: 'completed', completedAt: now },
       });
+      // Uploaded again on purpose: no longer "deleted by you".
+      await tx.deletedContent.deleteMany({ where: { userId, sha256: asset.sha256 } });
       if (asset.status !== 'verified') {
         await tx.user.update({
           where: { id: userId },
@@ -404,10 +416,15 @@ export class UploadService {
 
   /** Checks objects in S3 right now: they exist, with the recorded size and checksum. */
   async verify(userId: string, sha256s: string[]): Promise<VerifyAssetsResponse['results']> {
-    const assets = await withUser(this.ctx.db, userId, (tx) =>
-      tx.asset.findMany({ where: { userId, sha256: { in: sha256s } } }),
-    );
+    const { assets, deleted } = await withUser(this.ctx.db, userId, async (tx) => ({
+      assets: await tx.asset.findMany({ where: { userId, sha256: { in: sha256s } } }),
+      deleted: await tx.deletedContent.findMany({
+        where: { userId, sha256: { in: sha256s } },
+        select: { sha256: true },
+      }),
+    }));
     const bySha = new Map(assets.map((asset) => [asset.sha256, asset]));
+    const deletedShas = new Set(deleted.map((row) => row.sha256));
     const results: VerifyAssetsResponse['results'] = [];
     const seen: string[] = [];
     let index = 0;
@@ -416,7 +433,11 @@ export class UploadService {
         const sha256 = sha256s[index++]!;
         const asset = bySha.get(sha256);
         if (!asset || asset.status !== 'verified') {
-          results.push({ sha256, status: 'unknown' });
+          results.push({ sha256, status: deletedShas.has(sha256) && !asset ? 'deleted' : 'unknown' });
+          continue;
+        }
+        if (asset.deletedAt) {
+          results.push({ sha256, status: 'trashed' });
           continue;
         }
         const head = await this.head(asset.s3Key);

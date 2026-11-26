@@ -3,10 +3,11 @@
 import type { CreateDownloadRequest } from '@memory-vault/shared';
 import { formatBytes } from '@memory-vault/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { BookPlus, Download, Heart, Loader2, X } from 'lucide-react';
+import { BookPlus, Download, Heart, Loader2, Trash2, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { AddToAlbumDialog } from '@/components/albums/add-to-album';
+import { useTrash } from '@/components/trash/use-trash';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { errorMessage } from '@/lib/api';
@@ -70,6 +71,7 @@ const count = (value: number) => `${value.toLocaleString()} ${value === 1 ? 'ite
 export function SelectionBar({ actions }: { actions?: (selection: Selection) => ReactNode }) {
   const selection = useSelection();
   const queryClient = useQueryClient();
+  const trash = useTrash();
   const { busy, download } = useZipDownload();
   const [adding, setAdding] = useState<string[] | null>(null);
   if (!selection?.active) return null;
@@ -99,7 +101,8 @@ export function SelectionBar({ actions }: { actions?: (selection: Selection) => 
           <X />
         </BarAction>
         <p aria-live="polite" className="min-w-0 flex-1 truncate px-1 text-sm font-medium tabular-nums">
-          {ids.length.toLocaleString()} selected
+          {ids.length.toLocaleString()}
+          <span className="max-sm:sr-only"> selected</span>
         </p>
         <BarAction label={allFavourite ? 'Remove from Favourites' : 'Add to Favourites'} onClick={favourite}>
           <Heart className={allFavourite ? 'fill-current' : undefined} />
@@ -108,6 +111,12 @@ export function SelectionBar({ actions }: { actions?: (selection: Selection) => 
           <BookPlus />
         </BarAction>
         {actions?.(selection)}
+        <BarAction
+          label="Move to Trash"
+          onClick={() => void trash.move(ids).then((moved) => moved && selection.clear())}
+        >
+          <Trash2 />
+        </BarAction>
         <Button
           className="ml-1 rounded-full max-sm:size-10 max-sm:px-0"
           disabled={busy}

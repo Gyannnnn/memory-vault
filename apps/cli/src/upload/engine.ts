@@ -24,6 +24,8 @@ export interface UploadOptions {
   sourceIds: SourceId[];
   apiUrl: string;
   retryFailed: boolean;
+  /** Upload content the owner deleted for good from the vault, too. */
+  includeDeleted?: boolean;
   parallelParts: number;
   parallelFiles: number;
   stagePhoneFile: (source: SourceRow, row: FileRow, signal: AbortSignal) => Promise<StagedFile>;
@@ -35,6 +37,10 @@ export interface UploadSummary {
   deduplicated: number;
   failed: number;
   awaitingReview: number;
+  /** Stored, but in the vault's Trash. */
+  inTrash: number;
+  /** Deleted for good from the vault by you; not uploaded again. */
+  deletedByYou: number;
   interrupted: boolean;
 }
 
@@ -93,6 +99,8 @@ export async function runUpload(
     deduplicated: 0,
     failed: 0,
     awaitingReview: 0,
+    inTrash: 0,
+    deletedByYou: 0,
     interrupted: false,
   };
 
@@ -109,7 +117,7 @@ export async function runUpload(
 
     const contents = new Map<string, Content>();
     for (const id of options.sourceIds) {
-      for (const row of manifest.uploadCandidates(id, options.retryFailed)) {
+      for (const row of manifest.uploadCandidates(id, options.retryFailed, options.includeDeleted)) {
         const content = contents.get(row.sha256!) ?? { sha256: row.sha256!, size: row.size ?? 0, rows: [] };
         content.rows.push(row);
         contents.set(row.sha256!, content);
@@ -136,8 +144,14 @@ export async function runUpload(
       return result;
     };
 
+    const trashed = new Set<string>();
     const markRows = (rows: FileRow[], status: 'uploaded' | 'deduplicated', assetId?: string) => {
       for (const row of rows) {
+        if (status === 'deduplicated' && trashed.has(row.sha256!)) {
+          manifest.setStatus(row.sourceId, row.path, 'in_trash', assetId ? { assetId } : {});
+          summary.inTrash += 1;
+          continue;
+        }
         manifest.setStatus(row.sourceId, row.path, status, assetId ? { assetId } : {});
         if (status === 'uploaded') summary.uploaded += 1;
         else summary.deduplicated += 1;
@@ -161,16 +175,33 @@ export async function runUpload(
     view.render([`Checking ${formatCount(contents.size)} files against your library…`]);
     const all = [...contents.values()];
     const existing = new Set<string>();
+    const deleted = new Map<string, string>();
     for (let start = 0; start < all.length && !signal.aborted; start += 1000) {
       const slice = all.slice(start, start + 1000);
       const result = await retry(() => api.checkUploads(slice.map(({ sha256, size }) => ({ sha256, size }))));
       for (const sha256 of result.existing) existing.add(sha256);
+      for (const sha256 of result.trashed) trashed.add(sha256);
+      for (const row of result.deleted) deleted.set(row.sha256, row.purgedAt);
     }
     const alreadyStored = all.filter((content) => existing.has(content.sha256));
     await recordOrigins(alreadyStored.flatMap((content) => content.rows));
 
+    // Deleted for good by you: said so in the report, not uploaded again unless asked.
+    const skippedDeleted = options.includeDeleted
+      ? []
+      : all.filter((content) => !existing.has(content.sha256) && deleted.has(content.sha256));
+    for (const content of skippedDeleted) {
+      const on = deleted.get(content.sha256)!.slice(0, 10);
+      for (const row of content.rows) {
+        manifest.setStatus(row.sourceId, row.path, 'deleted_by_you', {
+          error: `Deleted by you from the vault on ${on}; upload with --include-deleted to add it again`,
+        });
+        summary.deletedByYou += 1;
+      }
+    }
+
     const queue = all
-      .filter((content) => !existing.has(content.sha256))
+      .filter((content) => !existing.has(content.sha256) && !skippedDeleted.includes(content))
       .sort((a, b) => Number(isPhoneOnly(a)) - Number(isPhoneOnly(b)));
     const totalBytes = queue.reduce((sum, content) => sum + content.size, 0);
     const meter = new RateMeter();
@@ -344,7 +375,7 @@ export async function runUpload(
     view.finish([
       summary.interrupted
         ? `Paused. ${formatCount(summary.uploaded)} files uploaded so far; run the same command again to resume.`
-        : `Done in ${formatDuration(meter.elapsedSeconds())}: ${formatCount(summary.uploaded)} uploaded (${formatBytes(summary.uploadedBytes)}), ${formatCount(summary.deduplicated)} already stored, ${formatCount(summary.failed)} failed, ${formatCount(summary.awaitingReview)} awaiting your review.`,
+        : `Done in ${formatDuration(meter.elapsedSeconds())}: ${formatCount(summary.uploaded)} uploaded (${formatBytes(summary.uploadedBytes)}), ${formatCount(summary.deduplicated)} already stored, ${formatCount(summary.failed)} failed, ${formatCount(summary.awaitingReview)} awaiting your review${summary.inTrash ? `, ${formatCount(summary.inTrash)} in your Trash` : ''}${summary.deletedByYou ? `, ${formatCount(summary.deletedByYou)} deleted by you before (not uploaded)` : ''}.`,
     ]);
     return summary;
   } finally {

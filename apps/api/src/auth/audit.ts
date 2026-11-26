@@ -15,7 +15,11 @@ export type AuditType =
   | 'auth.recovery_codes_generated'
   | 'auth.passkey_added'
   | 'auth.passkey_removed'
-  | 'user.created';
+  | 'user.created'
+  | 'asset.trashed'
+  | 'asset.restored'
+  | 'asset.purge_requested'
+  | 'asset.purged';
 
 export async function audit(
   db: Db | Tx,

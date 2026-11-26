@@ -12,6 +12,8 @@ export const buckets = [
   'excluded',
   'failed',
   'pending',
+  'in_trash',
+  'deleted_by_you',
 ] as const;
 export type Bucket = (typeof buckets)[number];
 
@@ -23,6 +25,8 @@ const bucketLabels: Record<Bucket, string> = {
   excluded: 'Excluded by folder selection',
   failed: 'Failed',
   pending: 'Not attempted yet',
+  in_trash: 'In your vault’s Trash (restore it there to keep it)',
+  deleted_by_you: 'Deleted by you from the vault (vault upload --include-deleted adds it again)',
 };
 
 interface Tally {
@@ -74,6 +78,9 @@ export async function buildReconciliation(
   const rowsBySource = new Map(sourceIds.map((id) => [id, manifest.files(id)] as const));
   let verification: ReconciliationReport['verification'];
   const verified = new Set<string>();
+  // Stored files that were since moved to Trash, or deleted for good, by the owner.
+  const trashedNow = new Set<string>();
+  const deletedNow = new Set<string>();
 
   if (api) {
     const shas = [
@@ -89,6 +96,8 @@ export async function buildReconciliation(
       const { results } = await api.verifyAssets(shas.slice(start, start + 500));
       for (const result of results) {
         if (result.status === 'verified') verified.add(result.sha256);
+        else if (result.status === 'trashed') trashedNow.add(result.sha256);
+        else if (result.status === 'deleted') deletedNow.add(result.sha256);
         else verification.problems.push(result);
       }
     }
@@ -117,7 +126,12 @@ export async function buildReconciliation(
       stillToVerify: [],
     };
     for (const row of files) {
-      const bucket = bucketOf(row);
+      const bucket =
+        row.sha256 && deletedNow.has(row.sha256)
+          ? 'deleted_by_you'
+          : row.sha256 && trashedNow.has(row.sha256)
+            ? 'in_trash'
+            : bucketOf(row);
       result.found.files += 1;
       result.found.bytes += row.size ?? 0;
       result.buckets[bucket].files += 1;

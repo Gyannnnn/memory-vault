@@ -115,3 +115,33 @@ export const albums = {
     return result.removed;
   },
 };
+
+const trashChanged = (queryClient: QueryClient) => {
+  refreshLibrary(queryClient);
+  void queryClient.invalidateQueries({ queryKey: ['trash'] });
+};
+
+export const trash = {
+  async move(queryClient: QueryClient, ids: string[]) {
+    const { trashed } = await api<{ trashed: number }>('/assets/trash', { method: 'POST', body: { ids } });
+    trashChanged(queryClient);
+    return trashed;
+  },
+  async restore(queryClient: QueryClient, ids: string[]) {
+    const { restored } = await api<{ restored: number }>('/assets/restore', {
+      method: 'POST',
+      body: { ids },
+    });
+    trashChanged(queryClient);
+    return restored;
+  },
+  /** Deletes for good now instead of after 30 days. */
+  async deleteNow(queryClient: QueryClient, ids: string[]) {
+    const { requested } = await api<{ requested: number }>('/trash/delete', {
+      method: 'POST',
+      body: { ids },
+    });
+    trashChanged(queryClient);
+    return requested;
+  },
+};

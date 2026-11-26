@@ -8,7 +8,9 @@ What to do when something is lost. In every scenario the original files in S3 ar
 | ----------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------- |
 | S3 (11 nines durability, 3+ availability zones)                                           | Disk and hardware failure            | `users/{userId}/originals/…`                               |
 | S3 versioning + 30-day noncurrent retention                                               | Accidental overwrite or delete       | Older versions of the same key                             |
-| App IAM policy denies deleting originals and versions                                     | A leaked app key wiping the archive  | `memory-vault-app` user                                    |
+| App IAM policy: deleting only adds a delete marker; versions can't be deleted             | A leaked app key wiping the archive  | `memory-vault-app` user                                    |
+| S3 Object Lock, governance mode, 30 days (from M3)                                        | Anyone deleting a version early      | Every object version written since it was turned on        |
+| Trash: 30 days in the app before anything is deleted                                      | Deleting the wrong photo             | Trash page; `assets.deleted_at`                            |
 | Object metadata on every original (`sha256`, `source`, `original-path`, `original-mtime`) | Losing the database                  | Each object's `x-amz-meta-*` headers                       |
 | Nightly catalogue export                                                                  | Losing the database                  | `system/catalog/{userId}/latest.jsonl.gz` (+ dated copies) |
 | Nightly `pg_dump`                                                                         | Losing the database                  | `system/db-backups/daily/…`, `system/db-backups/monthly/…` |
@@ -69,6 +71,41 @@ aws s3api copy-object --bucket BUCKET --key users/{userId}/originals/ab/abcdef�
 ```
 
 Removing a delete marker (`aws s3api delete-object … --version-id <marker-id>`) also brings the object back.
+
+## 3b. Recover a file deleted from Trash
+
+Something deleted from Trash (after its 30 days, or with **Delete now**) still exists as an older version for 30 more days.
+
+**If you still have the file**, the easiest way is to upload it again: **Upload anyway** in the browser, or `pnpm vault upload <source> --include-deleted`.
+
+**Otherwise:**
+
+1. Find its SHA-256. Each one is recorded when it is deleted:
+
+   ```bash
+   docker compose exec postgres psql -U vault -d vault \
+     -c "SELECT original_name, sha256, purged_at FROM deleted_content ORDER BY purged_at DESC LIMIT 20;"
+   ```
+
+   The same name and SHA-256 are in the `asset.purged` events in `audit_events`.
+
+2. Remove the delete marker on the original, with your admin profile (the app's key can't):
+
+   ```bash
+   aws s3api list-object-versions --bucket BUCKET \
+     --prefix users/{userId}/originals/ab/abcdef… --profile <admin>
+   # In "DeleteMarkers", the one with "IsLatest": true:
+   aws s3api delete-object --bucket BUCKET --key users/{userId}/originals/ab/abcdef….jpg \
+     --version-id <marker VersionId> --profile <admin>
+   ```
+
+3. Let the app adopt it again. This re-adds anything in the bucket that the index is missing, makes its previews again, and clears its "deleted by you" record:
+
+   ```bash
+   pnpm vault-admin rebuild-index --user-id {userId}
+   ```
+
+   If the last nightly catalogue still listed it as being in Trash, it comes back in Trash: restore it from there.
 
 ## 4. Export everything
 

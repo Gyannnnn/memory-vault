@@ -19,12 +19,15 @@ import {
   Loader2,
   Minus,
   Plus,
+  RotateCcw,
+  Trash2,
   X,
 } from 'lucide-react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AddToAlbumDialog } from '@/components/albums/add-to-album';
+import { useTrash } from '@/components/trash/use-trash';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { errorMessage } from '@/lib/api';
@@ -265,6 +268,20 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const favourite = detail.data?.favorite ?? tile?.favorite ?? false;
+  const inTrash = Boolean(detail.data?.trashedAt);
+  const trashActions = useTrash();
+  // To Trash: show the next photo (or the previous one at the end), or close.
+  const moveToTrash = useCallback(() => {
+    const after = next ?? previous;
+    void trashActions.move([currentId]).then((moved) => {
+      if (!moved) return;
+      if (after) onShow(after.id);
+      else onClose();
+    });
+  }, [trashActions, currentId, next, previous, onShow, onClose]);
+  const restore = useCallback(() => {
+    void trashActions.restore([currentId]);
+  }, [trashActions, currentId]);
   const toggleFavourite = useCallback(() => {
     setFavorite(queryClient, [currentId], !favourite).catch((error: unknown) =>
       toast.error('Favourites weren’t changed', { description: errorMessage(error) }),
@@ -305,7 +322,8 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
       else if (event.key === 'ArrowRight') go(next);
       else if (event.key === 'i') toggleInfo();
       else if (event.key === 'm' && hasMotion) toggleMotion();
-      else if (event.key === '.') toggleFavourite();
+      else if (event.key === '.' && !inTrash) toggleFavourite();
+      else if (event.key === 'Delete' && !inTrash) moveToTrash();
       else if (event.key === '+' || event.key === '=') zoom.current?.zoom(1);
       else if (event.key === '-') zoom.current?.zoom(-1);
       else if (event.key === '0') zoom.current?.zoom(0);
@@ -314,7 +332,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, previous, next, toggleInfo, hasMotion, toggleMotion, toggleFavourite]);
+  }, [go, previous, next, toggleInfo, hasMotion, toggleMotion, toggleFavourite, inTrash, moveToTrash]);
 
   const title = tile ? formatWallTime(tile.localAt) : 'Loading';
   const place = detail.data?.location?.place;
@@ -360,7 +378,11 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                   {title}
                 </DialogPrimitive.Title>
                 <p className="truncate text-xs text-ink-muted">
-                  {[place ? [place.name, place.country].filter(Boolean).join(', ') : null, position]
+                  {[
+                    inTrash ? 'In Trash' : null,
+                    place ? [place.name, place.country].filter(Boolean).join(', ') : null,
+                    position,
+                  ]
                     .filter(Boolean)
                     .join(' · ')}
                 </p>
@@ -383,16 +405,27 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                   </ToolbarButton>
                 </>
               )}
-              <ToolbarButton
-                label={favourite ? 'Remove from Favourites (.)' : 'Add to Favourites (.)'}
-                onClick={toggleFavourite}
-                pressed={favourite}
-              >
-                <Heart className={favourite ? 'fill-current' : undefined} />
-              </ToolbarButton>
-              <ToolbarButton label="Add to album" onClick={() => setAdding(true)}>
-                <BookPlus />
-              </ToolbarButton>
+              {inTrash ? (
+                <Button variant="outline" size="sm" onClick={restore} className="mx-1">
+                  <RotateCcw aria-hidden="true" /> Restore
+                </Button>
+              ) : (
+                <>
+                  <ToolbarButton
+                    label={favourite ? 'Remove from Favourites (.)' : 'Add to Favourites (.)'}
+                    onClick={toggleFavourite}
+                    pressed={favourite}
+                  >
+                    <Heart className={favourite ? 'fill-current' : undefined} />
+                  </ToolbarButton>
+                  <ToolbarButton label="Add to album" onClick={() => setAdding(true)}>
+                    <BookPlus />
+                  </ToolbarButton>
+                  <ToolbarButton label="Move to Trash (Delete)" onClick={moveToTrash}>
+                    <Trash2 />
+                  </ToolbarButton>
+                </>
+              )}
               {detail.data && (
                 <Tooltip>
                   <TooltipTrigger asChild>

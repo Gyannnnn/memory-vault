@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import { closeContext, createContext, createRedis } from './context';
 import { env } from './env';
+import { purgeTrash } from './library/trash';
 import { createSqsClient } from './storage/aws';
 import { processIngest } from './workers/ingest';
 import { runCatalogExport, runDatabaseBackup, runIntegrityCheck } from './workers/maintenance';
@@ -55,6 +56,11 @@ const maintenance = new Worker(
         return runDatabaseBackup(context);
       case 'catalog-export':
         return runCatalogExport(context);
+      case 'trash-purge': {
+        // Scheduled: everyone's Trash; "Delete now": that user's.
+        const userId = (job.data as { userId?: string } | undefined)?.userId;
+        return purgeTrash(context, userId ? { userId } : {});
+      }
       default:
         throw new Error(`unknown maintenance job ${job.name}`);
     }
@@ -66,6 +72,8 @@ const schedule = new Queue(QUEUE.maintenance, { connection });
 await schedule.upsertJobScheduler('integrity-weekly', { pattern: '0 30 20 * * 6' }, { name: 'integrity' });
 await schedule.upsertJobScheduler('db-backup-daily', { pattern: '0 0 20 * * *' }, { name: 'db-backup' });
 await schedule.upsertJobScheduler('catalog-daily', { pattern: '0 30 21 * * *' }, { name: 'catalog-export' });
+// 03:30 in India, after the catalogue: items 30 days in Trash are deleted for good.
+await schedule.upsertJobScheduler('trash-purge-daily', { pattern: '0 0 22 * * *' }, { name: 'trash-purge' });
 
 const events = config.SQS_S3_EVENTS_QUEUE_URL
   ? consumeS3Events({ ...context, jobs }, createSqsClient(config), stop.signal)
