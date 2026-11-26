@@ -46,6 +46,7 @@ pnpm vault login            # or: pnpm vault login --recovery
 
 # Upload, review, reconcile
 pnpm vault upload laptop:s21fe phone:s21fe
+pnpm vault upload phone:s21fe --include-deleted   # also re-add files you deleted from the vault for good
 pnpm vault classify && pnpm vault review
 pnpm vault report --verify   # every file checked in S3; writes safe-to-delete lists
 

@@ -45,8 +45,8 @@ Runs on localhost for now; media via short-lived presigned S3 URLs (CloudFront a
 | ------------------------------------------ | -------------------------------------- |
 | M0 Web foundation and security screens     | done (checked by the owner 2026-11-24) |
 | M1 Browse                                  | done (checked by the owner 2026-11-25) |
-| M2 Upload, video, downloads, motion photos | built, awaiting check-in               |
-| M3 Organise, share and protect             | todo                                   |
+| M2 Upload, video, downloads, motion photos | done (owner moved on 2026-11-25)       |
+| M3 Organise, share and protect             | built, awaiting check-in               |
 | M4 People, OCR, trips                      | todo                                   |
 | M5 Account continuity                      | todo                                   |
 | M6 Stats, cost, encrypted folders          | todo                                   |
@@ -74,6 +74,16 @@ M2 delivered (2026-11-25):
 - **Export:** `vault export <folder>` writes every original into its original folders with name and date, each checked against its SHA-256, resumable, with `catalogue.json` and a README.
 - **Fixes on the way:** HEIC photos named `.jpg` (Instagram) now get previews; `stage-pending` waits for a disconnected phone instead of skipping files; motion clips run ahead of the video backlog.
 - **Notes:** the laptop restarted twice overnight (2026-11-25 00:21 and 09:42); Docker Desktop has to be started again after a restart, and the worker then carries on from its queue.
+
+M3 delivered (2026-11-26):
+
+- **Favourites and albums:** a heart in the viewer (or `.`), on a selection and on tiles; albums made from a selection or the Albums page, renamed, given a cover, downloaded as a zip. Albums hold references only.
+- **Trash:** from a selection or the viewer (Delete key), with Undo; the Trash page shows days left, restores, and deletes now. Deletion for good happens 30 days later (nightly) or on "Delete now": S3 delete markers, versions kept 30 more days. Uploads (CLI and browser) report trashed and deleted content instead of re-adding it. **Waiting on the owner:** the two console steps in `docs/setup/phase-2-aws-setup.md` (Object Lock, updated policy), then `pnpm aws:verify`; until then nothing is deleted from S3 and due items wait in Trash with the reason.
+- **Share links** to a photo, an album or a folder: expiry, optional password, downloads on or off, Settings › Sharing to copy or turn off; visitors see `/s/<token>` without signing in. They open only on this laptop until the app is deployed.
+- **Duplicates** (Manage › Duplicates): look-alikes side by side with the best copy suggested; keep what you choose, the rest go to Trash. On the real library: 3,114 groups (1,718 pairs, largest 58) among 19,593 hashed items, about 14 GB in the non-best copies.
+- **Activity** (Settings › Activity): sign-ins, links, downloads, exports and deletions with time, device and address.
+- **Also:** the side menu has coloured icon tiles and page titles are a slim bar (2026-11-25, owner's request).
+- **Migrations** `organise`, `trash`, `shares`, `duplicates` applied to the real database, each after a backup in `reports/` (`db-before-m3-*.dump`).
 
 Core (from the brief): browse, timeline, map, search and filters, folders, zip download, upload with progress, video playback (HLS + Vidstack), sharing links, statistics, People (faces), passkey sign-in screens.
 
@@ -133,6 +143,10 @@ Expo dev builds, approval-based sync, trip detection, junk review, native passke
 | 2026-11-25 | HLS renditions as one fragmented MP4 each, addressed by byte range                                       | One object per rendition instead of hundreds of segments; one presigned link per playlist                                                      |
 | 2026-11-25 | Our own streaming zip writer (stored, zip64), not a zip library                                          | Exact size known before the first byte, so the browser shows real progress on a slow line; Python's zipfile checks it in tests                 |
 | 2026-11-25 | Vidstack with bundled hls.js and no Cast button                                                          | No third-party script or CDN request from the vault pages                                                                                      |
+| 2026-11-26 | Purge = S3 delete markers + a `deleted_content` record; Object Lock keeps versions 30 more days          | A deletion can be undone for about 60 days in all, and a deleted file isn't silently uploaded again by the next phone sync                     |
+| 2026-11-26 | Share links outside row-level security, token stored hashed (plus an encrypted copy for the owner)       | A visitor is unknown until the link is found; scope is checked in SQL with the owner's row-level security                                      |
+| 2026-11-26 | Shared pages show capture dates and previews only; names only when downloads are allowed                 | Owner's choice of privacy defaults: no places, camera details or folder paths leave through a link                                             |
+| 2026-11-26 | Near-duplicates: 7-band pHash search, within 6 bits, grouped around the best copy                        | Finds every close pair (tested) without chains of near matches joining unrelated photos; suggestions only, nothing deleted automatically       |
 
 ## Open questions
 
