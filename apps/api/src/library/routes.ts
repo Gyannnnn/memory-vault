@@ -4,6 +4,8 @@ import {
   albumItemsRequest,
   assetSearchQuery,
   createAlbumRequest,
+  dismissDuplicatesRequest,
+  duplicatesQuery,
   favoriteRequest,
   updateAlbumRequest,
   onThisDayQuery,
@@ -22,6 +24,7 @@ import { notFound, parse } from '../http/errors';
 import { UploadService } from '../uploads/service';
 import { AlbumService } from './albums';
 import { BrowseService } from './browse';
+import { DuplicateService } from './duplicates';
 import { ExportService } from './export';
 import { ProcessingService } from './processing';
 import { PLAYLIST_TYPE, StreamService } from './streams';
@@ -41,6 +44,7 @@ export function libraryRoutes(ctx: AppContext): Router {
   const exports = new ExportService(ctx);
   const albums = new AlbumService(ctx);
   const trash = new TrashService(ctx);
+  const duplicates = new DuplicateService(ctx);
 
   router.post('/assets/origins', async (request, response) => {
     const { items } = parse(recordOriginsRequest, request.body);
@@ -75,6 +79,16 @@ export function libraryRoutes(ctx: AppContext): Router {
   router.post('/trash/delete', async (request, response) => {
     const { ids } = parse(trashRequest, request.body);
     response.json(await trash.requestPurge(authOf(request).userId, ids, requestMeta(request)));
+  });
+
+  router.get('/duplicates', async (request, response) => {
+    const { offset, limit } = parse(duplicatesQuery, request.query);
+    response.json(await duplicates.list(authOf(request).userId, offset, limit));
+  });
+
+  router.post('/duplicates/dismiss', async (request, response) => {
+    const { assetIds } = parse(dismissDuplicatesRequest, request.body);
+    response.json(await duplicates.dismiss(authOf(request).userId, assetIds));
   });
 
   router.get('/albums', async (request, response) => {

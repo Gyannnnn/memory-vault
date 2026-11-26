@@ -1,5 +1,6 @@
 import {
   BookImage,
+  Copy,
   ChartPie,
   Folder,
   Images,
@@ -11,7 +12,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-export type Tint = 'blue' | 'violet' | 'amber' | 'rose' | 'orange' | 'green' | 'teal' | 'gray' | 'slate';
+export type Tint =
+  'blue' | 'violet' | 'indigo' | 'amber' | 'rose' | 'orange' | 'green' | 'teal' | 'gray' | 'slate';
 
 export interface NavItem {
   href: string;
@@ -33,6 +35,7 @@ export const libraryNav: NavItem[] = [
 ];
 
 export const manageNav: NavItem[] = [
+  { href: '/duplicates', label: 'Duplicates', icon: Copy, tint: 'indigo' },
   { href: '/trash', label: 'Trash', icon: Trash2, tint: 'gray' },
   { href: '/stats', label: 'Storage', icon: ChartPie, tint: 'teal' },
   { href: '/settings/security', label: 'Settings', icon: Settings, tint: 'slate', matches: ['/settings'] },

@@ -49,6 +49,7 @@ model User {
   albumItems     AlbumItem[]
   deletedContent DeletedContent[]
   shareLinks     ShareLink[]
+  duplicateDismissals DuplicateDismissal[]
 
   @@map("users")
 }
@@ -222,6 +223,8 @@ model Asset {
   uploadSessions UploadSession[]
   albumItems     AlbumItem[]
   coverOf        Album[]         @relation("AlbumCover")
+  dismissedAsA   DuplicateDismissal[] @relation("DismissedA")
+  dismissedAsB   DuplicateDismissal[] @relation("DismissedB")
 
   @@unique([userId, sha256])
   @@index([userId, takenAt(sort: Desc), id])
@@ -451,4 +454,18 @@ model ShareLink {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, targetId])
   @@map("share_links")
+}
+
+/// Two photos the owner said are not duplicates (assetA < assetB), so they aren't grouped again.
+model DuplicateDismissal {
+  userId    String   @map("user_id") @db.Uuid
+  assetA    String   @map("asset_a") @db.Uuid
+  assetB    String   @map("asset_b") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  a         Asset    @relation("DismissedA", fields: [assetA], references: [id], onDelete: Cascade)
+  b         Asset    @relation("DismissedB", fields: [assetB], references: [id], onDelete: Cascade)
+
+  @@id([userId, assetA, assetB])
+  @@map("duplicate_dismissals")
 }

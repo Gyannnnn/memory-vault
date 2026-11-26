@@ -32,6 +32,7 @@ const lightColors = {
   /** Icon tiles in the navigation: one hue per destination, white glyphs (3:1 or better). */
   tintBlue: '#2563EB',
   tintViolet: '#7C3AED',
+  tintIndigo: '#4F46E5',
   tintAmber: '#D97706',
   tintRose: '#E11D48',
   tintOrange: '#EA580C',
@@ -72,6 +73,7 @@ const darkColors: Record<ColorRole, string> = {
   selection: 'rgba(96, 165, 250, 0.18)',
   tintBlue: '#2563EB',
   tintViolet: '#7C3AED',
+  tintIndigo: '#4F46E5',
   tintAmber: '#D97706',
   tintRose: '#E11D48',
   tintOrange: '#EA580C',
@@ -89,15 +91,7 @@ export const tokens = {
   radius: { sm: 6, md: 10, lg: 14, xl: 20, full: 9999 },
   font: {
     // SUSE, dealt from the taste skill's library for software (library/type.json).
-    sans: [
-      'SUSE',
-      'ui-sans-serif',
-      'system-ui',
-      '-apple-system',
-      'Segoe UI',
-      'Roboto',
-      'sans-serif',
-    ],
+    sans: ['SUSE', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
     mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   },
   /** Nothing smaller than 13 px; reading text 15–16 px. */

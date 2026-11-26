@@ -5,6 +5,7 @@ import type { NavItem, Tint } from './nav';
 const TILE: Record<Tint, string> = {
   blue: 'bg-tint-blue',
   violet: 'bg-tint-violet',
+  indigo: 'bg-tint-indigo',
   amber: 'bg-tint-amber',
   rose: 'bg-tint-rose',
   orange: 'bg-tint-orange',
