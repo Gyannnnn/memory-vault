@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 const TABS = [
   { href: '/settings/security', label: 'Security' },
   { href: '/settings/sharing', label: 'Sharing' },
+  { href: '/settings/activity', label: 'Activity' },
 ];
 
 /** Settings' page bar: its name, then one tab per section. */

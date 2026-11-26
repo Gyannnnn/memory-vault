@@ -18,13 +18,16 @@ import {
   trashRequest,
   verifyAssetsRequest,
 } from '@memory-vault/shared';
+import { audit } from '../auth/audit';
 import type { AppContext } from '../context';
+import { withUser } from '../db';
 import { authOf, requestMeta } from '../http/auth-middleware';
 import { notFound, parse } from '../http/errors';
 import { UploadService } from '../uploads/service';
 import { AlbumService } from './albums';
 import { BrowseService } from './browse';
 import { DuplicateService } from './duplicates';
+import { MediaUrlSigner } from './media-urls';
 import { ExportService } from './export';
 import { ProcessingService } from './processing';
 import { PLAYLIST_TYPE, StreamService } from './streams';
@@ -45,6 +48,7 @@ export function libraryRoutes(ctx: AppContext): Router {
   const albums = new AlbumService(ctx);
   const trash = new TrashService(ctx);
   const duplicates = new DuplicateService(ctx);
+  const urls = new MediaUrlSigner(ctx);
 
   router.post('/assets/origins', async (request, response) => {
     const { items } = parse(recordOriginsRequest, request.body);
@@ -180,7 +184,33 @@ export function libraryRoutes(ctx: AppContext): Router {
 
   router.get('/export', async (request, response) => {
     const { cursor, limit } = parse(exportPageQuery, request.query);
-    response.json(await exports.page(authOf(request).userId, cursor, limit));
+    const { userId } = authOf(request);
+    const page = await exports.page(userId, cursor, limit);
+    if (!cursor)
+      await audit(ctx.db, {
+        userId,
+        type: 'export.started',
+        meta: requestMeta(request),
+        metadata: { files: page.total, bytes: page.totalBytes },
+      });
+    response.json(page);
+  });
+
+  // The original under its own name, through here so the download is in the activity log.
+  router.get('/assets/:id/original', async (request, response) => {
+    const { userId } = authOf(request);
+    const assetId = parse(z.uuid(), request.params.id);
+    const asset = await withUser(ctx.db, userId, (tx) =>
+      tx.asset.findFirst({ where: { id: assetId, userId, status: 'verified' } }),
+    );
+    if (!asset) throw notFound('Photo not found');
+    await audit(ctx.db, {
+      userId,
+      type: 'download.original',
+      meta: requestMeta(request),
+      metadata: { name: asset.originalName, bytes: Number(asset.sizeBytes) },
+    });
+    response.set('cache-control', 'no-store').redirect(302, await urls.original(asset, 'attachment'));
   });
 
   router.get('/processing/pending', async (request, response) => {

@@ -436,7 +436,11 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon-lg" asChild>
-                      <a href={detail.data.downloadUrl} aria-label="Download the original">
+                      {/* Through the API, so the download is in the activity log. */}
+                      <a
+                        href={`/api/v1/assets/${detail.data.id}/original`}
+                        aria-label="Download the original"
+                      >
                         <Download />
                       </a>
                     </Button>

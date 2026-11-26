@@ -3,7 +3,8 @@ import { pipeline } from 'node:stream/promises';
 import { Router } from 'express';
 import { createDownloadRequest } from '@memory-vault/shared';
 import type { AppContext } from '../context';
-import { authOf } from '../http/auth-middleware';
+import { audit } from '../auth/audit';
+import { authOf, requestMeta } from '../http/auth-middleware';
 import { parse } from '../http/errors';
 import { contentDisposition, DownloadService } from './service';
 
@@ -12,9 +13,21 @@ export function downloadRoutes(ctx: AppContext): Router {
   const downloads = new DownloadService(ctx);
 
   router.post('/', async (request, response) => {
-    response
-      .status(201)
-      .json(await downloads.create(authOf(request).userId, parse(createDownloadRequest, request.body)));
+    const { userId } = authOf(request);
+    const body = parse(createDownloadRequest, request.body);
+    const summary = await downloads.create(userId, body);
+    await audit(ctx.db, {
+      userId,
+      type: 'download.zip',
+      meta: requestMeta(request),
+      metadata: {
+        of: 'albumId' in body ? 'album' : 'folderId' in body ? 'folder' : 'selection',
+        name: summary.fileName,
+        files: summary.fileCount,
+        bytes: summary.totalBytes,
+      },
+    });
+    response.status(201).json(summary);
   });
 
   router.get('/:id', async (request, response) => {

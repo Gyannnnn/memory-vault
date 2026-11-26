@@ -24,7 +24,10 @@ export type AuditType =
   | 'share.revoked'
   | 'share.opened'
   | 'share.unlock_failed'
-  | 'share.downloaded';
+  | 'share.downloaded'
+  | 'download.zip'
+  | 'download.original'
+  | 'export.started';
 
 export async function audit(
   db: Db | Tx,
