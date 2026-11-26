@@ -10,7 +10,8 @@ import {
   writeSession,
 } from '@/lib/server/session';
 
-const PUBLIC_PATHS = ['/sign-in', '/api/auth'];
+// Share links (/s/…) and their gateway are for anyone with the link, signed in or not.
+const PUBLIC_PATHS = ['/sign-in', '/api/auth', '/s', '/api/share'];
 
 async function refresh(request: NextRequest, refreshToken: string): Promise<TokenResponse | null> {
   try {

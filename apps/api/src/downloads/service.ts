@@ -15,6 +15,8 @@ interface StoredDownload {
   userId: string;
   request: CreateDownloadRequest;
   fileName: string;
+  /** Prepared for a visitor of this share link; only that link can fetch it. */
+  shareId?: string;
 }
 
 interface FileRow {
@@ -111,10 +113,14 @@ export class DownloadService {
     });
   }
 
-  async create(userId: string, request: CreateDownloadRequest): Promise<DownloadSummary> {
+  async create(
+    userId: string,
+    request: CreateDownloadRequest,
+    options: { shareId?: string } = {},
+  ): Promise<DownloadSummary> {
     const { fileName, plan } = await this.prepare(userId, request);
     const id = randomBytes(16).toString('hex');
-    const stored: StoredDownload = { userId, request, fileName };
+    const stored: StoredDownload = { userId, request, fileName, ...options };
     await this.ctx.redis.set(key(id), JSON.stringify(stored), 'EX', TTL_SECONDS);
     return { id, fileName, fileCount: plan.entries.length, totalBytes: plan.totalSize };
   }
@@ -123,10 +129,12 @@ export class DownloadService {
   async open(
     userId: string,
     id: string,
+    options: { shareId?: string } = {},
   ): Promise<{ fileName: string; plan: ZipPlan; stream: () => AsyncGenerator<Buffer> }> {
     const raw = /^[0-9a-f]{32}$/.test(id) ? await this.ctx.redis.get(key(id)) : null;
     const stored = raw ? (JSON.parse(raw) as StoredDownload) : null;
-    if (!stored || stored.userId !== userId) throw notFound('This download has expired; start it again');
+    if (!stored || stored.userId !== userId || stored.shareId !== options.shareId)
+      throw notFound('This download has expired; start it again');
     const { fileName, plan, keys } = await this.prepare(userId, stored.request);
     const open = async (_entry: unknown, index: number) => {
       const object = await this.ctx.s3.send(

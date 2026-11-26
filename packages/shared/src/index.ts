@@ -9,6 +9,7 @@ export * from './api/uploads';
 export * from './api/library';
 export * from './api/albums';
 export * from './api/trash';
+export * from './api/shares';
 export * from './api/processing';
 export * from './api/downloads';
 export * from './api/export';

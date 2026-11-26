@@ -2,7 +2,6 @@
 
 import '@vidstack/react/player/styles/default/theme.css';
 import '@vidstack/react/player/styles/default/layouts/video.css';
-import type { AssetDetail } from '@memory-vault/shared';
 import {
   isHLSProvider,
   MediaPlayer,
@@ -18,14 +17,35 @@ import { useState } from 'react';
 /** Where the browser fetches a video's HLS master playlist (through the signed-in gateway). */
 export const streamUrl = (assetId: string) => `/api/v1/assets/${assetId}/stream.m3u8`;
 
+/** What the player needs: from the library, or from a share link. */
+export interface PlayableVideo {
+  id: string;
+  name: string;
+  width: number | null;
+  height: number | null;
+  mimeType: string;
+  stream: { qualities: number[] } | null;
+  /** The original, to play when there's no stream yet; null when it can't be offered. */
+  originalUrl: string | null;
+}
+
 /**
  * Plays a video: the adaptive stream when its streaming versions exist, otherwise the
  * original file. If the stream fails it falls back to the original; if that can't play
  * either (an HEVC original without a stream yet), it says so and links to the file.
  */
-export function VideoPlayer({ detail, poster }: { detail: AssetDetail; poster: string | undefined }) {
+export function VideoPlayer({
+  detail,
+  poster,
+  stream = streamUrl(detail.id),
+}: {
+  detail: PlayableVideo;
+  poster: string | undefined;
+  /** The master playlist; a share link has its own. */
+  stream?: string;
+}) {
   const [source, setSource] = useState<'stream' | 'original' | 'failed'>(
-    detail.stream ? 'stream' : 'original',
+    detail.stream ? 'stream' : detail.originalUrl ? 'original' : 'failed',
   );
   const ratio = detail.width && detail.height ? detail.width / detail.height : 16 / 9;
 
@@ -38,14 +58,16 @@ export function VideoPlayer({ detail, poster }: { detail: AssetDetail; poster: s
             ? 'The stream didn’t load. Check your connection and try again.'
             : 'A version that plays in the browser is being made.'}
         </p>
-        <a
-          href={detail.originalUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium underline-offset-4 hover:underline"
-        >
-          Open the original <ExternalLink className="size-4" aria-hidden="true" />
-        </a>
+        {detail.originalUrl && (
+          <a
+            href={detail.originalUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium underline-offset-4 hover:underline"
+          >
+            Open the original <ExternalLink className="size-4" aria-hidden="true" />
+          </a>
+        )}
       </div>
     );
   }
@@ -68,13 +90,13 @@ export function VideoPlayer({ detail, poster }: { detail: AssetDetail; poster: s
         title={detail.name}
         src={
           source === 'stream'
-            ? { src: streamUrl(detail.id), type: 'application/x-mpegurl' }
-            : { src: detail.originalUrl, type: detail.mimeType as 'video/mp4' }
+            ? { src: stream, type: 'application/x-mpegurl' }
+            : { src: detail.originalUrl ?? '', type: detail.mimeType as 'video/mp4' }
         }
         autoPlay
         playsInline
         onProviderChange={onProviderChange}
-        onError={() => setSource(source === 'stream' ? 'original' : 'failed')}
+        onError={() => setSource(source === 'stream' && detail.originalUrl ? 'original' : 'failed')}
       >
         <MediaProvider>{poster && <Poster className="vds-poster" src={poster} alt="" />}</MediaProvider>
         {/* No Cast button: casting would load Google's SDK into the page and hand the video to another device. */}

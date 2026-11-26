@@ -48,6 +48,7 @@ model User {
   albums         Album[]
   albumItems     AlbumItem[]
   deletedContent DeletedContent[]
+  shareLinks     ShareLink[]
 
   @@map("users")
 }
@@ -417,4 +418,37 @@ model DeletedContent {
 
   @@id([userId, sha256])
   @@map("deleted_content")
+}
+
+enum ShareKind {
+  photo
+  album
+  folder
+}
+
+/// A link that shows one photo, an album or a folder (with everything under it) to anyone
+/// who has it. Outside row-level security, like the identity tables: a visitor's link is
+/// looked up by its token before anyone is known. Every owner query filters on user_id.
+model ShareLink {
+  id              String    @id @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  /// SHA-256 of the token in the link; the token itself is kept only encrypted.
+  tokenHash       String    @unique @map("token_hash")
+  /// The token, AES-256-GCM with DATA_ENCRYPTION_KEY, so the owner can copy the link again.
+  tokenCiphertext Bytes     @map("token_ciphertext")
+  kind            ShareKind
+  targetId        String    @map("target_id") @db.Uuid
+  allowDownload   Boolean   @default(false) @map("allow_download")
+  /// argon2id; null when the link needs no password.
+  passwordHash    String?   @map("password_hash")
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(3)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(3)
+  openCount       Int       @default(0) @map("open_count")
+  lastOpenedAt    DateTime? @map("last_opened_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, targetId])
+  @@map("share_links")
 }

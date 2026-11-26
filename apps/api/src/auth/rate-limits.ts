@@ -20,6 +20,10 @@ export function createRateLimits(redis: Redis, prefix = 'rl') {
     recoveryByAccount: limiter('recovery-account', 5, 60 * 60, 60 * 60),
     refreshByIp: limiter('refresh-ip', 120, 60),
     passkeyByIp: limiter('passkey-ip', 30, 15 * 60),
+    /** Wrong passwords on one share link from one address. */
+    shareUnlock: limiter('share-unlock', 10, 15 * 60, 15 * 60),
+    /** Everything a visitor asks of share links, per address. */
+    shareByIp: limiter('share-ip', 600, 60),
   };
 }
 

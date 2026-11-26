@@ -20,6 +20,7 @@ import {
   Minus,
   Plus,
   RotateCcw,
+  Share2,
   Trash2,
   X,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AddToAlbumDialog } from '@/components/albums/add-to-album';
+import { ShareDialog } from '@/components/sharing/share-dialog';
 import { useTrash } from '@/components/trash/use-trash';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -267,6 +269,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
   const zoom = useRef<ZoomControls>(null);
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const favourite = detail.data?.favorite ?? tile?.favorite ?? false;
   const inTrash = Boolean(detail.data?.trashedAt);
   const trashActions = useTrash();
@@ -421,6 +424,9 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
                   <ToolbarButton label="Add to album" onClick={() => setAdding(true)}>
                     <BookPlus />
                   </ToolbarButton>
+                  <ToolbarButton label="Share" onClick={() => setSharing(true)}>
+                    <Share2 />
+                  </ToolbarButton>
                   <ToolbarButton label="Move to Trash (Delete)" onClick={moveToTrash}>
                     <Trash2 />
                   </ToolbarButton>
@@ -528,6 +534,7 @@ export function PhotoViewer({ items, currentId, onShow, onClose, onNearEdge }: P
 
           {infoOpen && <InfoPanel detail={detail.data} loading={detail.isPending} onClose={toggleInfo} />}
           <AddToAlbumDialog assetIds={[currentId]} open={adding} onOpenChange={setAdding} />
+          <ShareDialog kind="photo" targetId={currentId} open={sharing} onOpenChange={setSharing} />
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

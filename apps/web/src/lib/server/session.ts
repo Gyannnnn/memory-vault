@@ -5,7 +5,7 @@ export const REFRESH_COOKIE = 'vault_rt';
 
 export const apiUrl = () => (process.env.API_URL ?? 'http://localhost:4000').replace(/\/+$/, '');
 
-const secure = () => process.env.NODE_ENV === 'production' && !apiUrl().startsWith('http://localhost');
+export const secure = () => process.env.NODE_ENV === 'production' && !apiUrl().startsWith('http://localhost');
 
 interface CookieWriter {
   set(options: {

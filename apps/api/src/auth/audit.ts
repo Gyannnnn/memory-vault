@@ -19,7 +19,12 @@ export type AuditType =
   | 'asset.trashed'
   | 'asset.restored'
   | 'asset.purge_requested'
-  | 'asset.purged';
+  | 'asset.purged'
+  | 'share.created'
+  | 'share.revoked'
+  | 'share.opened'
+  | 'share.unlock_failed'
+  | 'share.downloaded';
 
 export async function audit(
   db: Db | Tx,

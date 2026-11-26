@@ -5,6 +5,7 @@ import { authRoutes } from '../auth/routes';
 import type { AppContext } from '../context';
 import { downloadRoutes } from '../downloads/routes';
 import { libraryRoutes } from '../library/routes';
+import { publicShareRoutes, shareRoutes } from '../sharing/routes';
 import { uploadRoutes } from '../uploads/routes';
 import { authOf, requireAuth } from './auth-middleware';
 import { errorHandler, notFound } from './errors';
@@ -22,6 +23,8 @@ export function createApp(ctx: AppContext): Express {
   });
 
   app.use('/v1/auth', authRoutes(ctx));
+  // Share links: no sign-in, before the signed-in /v1 routes below.
+  app.use('/v1/public/shares', publicShareRoutes(ctx));
 
   const signedIn = requireAuth(ctx);
   app.get('/v1/me', signedIn, async (request, response) => {
@@ -36,6 +39,7 @@ export function createApp(ctx: AppContext): Express {
   });
   app.use('/v1/uploads', signedIn, uploadRoutes(ctx));
   app.use('/v1/downloads', signedIn, downloadRoutes(ctx));
+  app.use('/v1/shares', signedIn, shareRoutes(ctx));
   app.use('/v1', signedIn, libraryRoutes(ctx));
 
   app.use((_request, _response, next) => next(notFound()));

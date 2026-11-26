@@ -5,11 +5,12 @@ import type { FolderFile } from '@memory-vault/shared';
 import { formatBytes } from '@memory-vault/shared';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { ChevronLeft, ChevronRight, Download, Folder, FolderOpen, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Folder, FolderOpen, Loader2, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MediaTile, tileLabel } from '@/components/media/media-tile';
 import { PageHeader } from '@/components/page-header';
+import { ShareDialog } from '@/components/sharing/share-dialog';
 import { SelectionProvider } from '@/components/selection/selection';
 import { SelectionBar, useZipDownload } from '@/components/selection/selection-bar';
 import { Button } from '@/components/ui/button';
@@ -155,6 +156,7 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
   const files = useMemo(() => listing.data?.pages.flatMap((page) => page.files) ?? [], [listing.data]);
   const tiles = useMemo(() => files.map((file) => file.asset), [files]);
   const zip = useZipDownload();
+  const [sharing, setSharing] = useState(false);
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = listing;
   const loadMore = useCallback(() => {
@@ -209,23 +211,32 @@ export function FolderBrowser({ folderId }: { folderId: string | null }) {
         actions={
           !isRoot &&
           folderId && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={zip.busy}
-              onClick={() => void zip.download({ folderId })}
-              aria-label="Download folder"
-            >
-              {zip.busy ? (
-                <Loader2 className="animate-spin" aria-hidden="true" />
-              ) : (
-                <Download aria-hidden="true" />
-              )}
-              <span className="max-sm:hidden">Download</span>
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => setSharing(true)} aria-label="Share folder">
+                <Share2 aria-hidden="true" />
+                <span className="max-sm:hidden">Share</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={zip.busy}
+                onClick={() => void zip.download({ folderId })}
+                aria-label="Download folder"
+              >
+                {zip.busy ? (
+                  <Loader2 className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download aria-hidden="true" />
+                )}
+                <span className="max-sm:hidden">Download</span>
+              </Button>
+            </>
           )
         }
       />
+      {!isRoot && folderId && (
+        <ShareDialog kind="folder" targetId={folderId} open={sharing} onOpenChange={setSharing} />
+      )}
 
       <div className="space-y-8 px-4 py-6 sm:px-8">
         {first.folders.length > 0 && (

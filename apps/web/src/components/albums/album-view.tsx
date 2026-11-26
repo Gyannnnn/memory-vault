@@ -10,6 +10,7 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
+  Share2,
   Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -19,6 +20,7 @@ import { toast } from 'sonner';
 import { sectionsByMonth } from '@/components/media/sections';
 import { VirtualGallery } from '@/components/media/virtual-gallery';
 import { PageHeader } from '@/components/page-header';
+import { ShareDialog } from '@/components/sharing/share-dialog';
 import { SelectionProvider } from '@/components/selection/selection';
 import { BarAction, SelectionBar, useZipDownload } from '@/components/selection/selection-bar';
 import {
@@ -78,6 +80,7 @@ export function AlbumView({ albumId }: { albumId: string | null }) {
   const zip = useZipDownload();
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const album = useQuery({ ...libraryQueries.album(albumId ?? ''), enabled: albumId !== null });
@@ -147,6 +150,10 @@ export function AlbumView({ albumId }: { albumId: string | null }) {
         actions={
           albumId && (
             <>
+              <Button variant="outline" size="sm" onClick={() => setSharing(true)} aria-label="Share album">
+                <Share2 aria-hidden="true" />
+                <span className="max-sm:hidden">Share</span>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -257,6 +264,8 @@ export function AlbumView({ albumId }: { albumId: string | null }) {
           onNearEdge={(direction) => direction === 'next' && loadMore()}
         />
       )}
+
+      {albumId && <ShareDialog kind="album" targetId={albumId} open={sharing} onOpenChange={setSharing} />}
 
       <AlbumNameDialog
         open={renaming}
